@@ -1,0 +1,57 @@
+services:
+  # --- Device simulators -----------------------------------------------
+  # BACnet/IP: AHU-1 and VAV-101..104. Implemented in M2.
+  bacnet-devices:
+    build: ./sims/bacnet_devices
+    networks:
+      bas_net:
+        ipv4_address: 10.10.0.11
+    ports:
+      - "47808:47808/udp"
+
+  # Modbus TCP energy meter. Implemented in M1.
+  modbus-meter:
+    build: ./sims/modbus_meter
+    networks:
+      bas_net:
+        ipv4_address: 10.10.0.12
+
+  # Fire alarm panel sim (REST/events). Implemented in M4.
+  fire-panel:
+    build: ./sims/fire_panel
+    networks:
+      bas_net:
+        ipv4_address: 10.10.0.13
+
+  # Access control sim (REST/events). Implemented in M5.
+  access-control:
+    build: ./sims/access_control
+    networks:
+      bas_net:
+        ipv4_address: 10.10.0.14
+
+  # --- Gateway -----------------------------------------------------------
+  gateway:
+    build: ./gateway
+    networks:
+      bas_net:
+        ipv4_address: 10.10.0.20
+    ports:
+      - "8000:8000"
+
+  # --- Console -------------------------------------------------------------
+  console:
+    build: ./console
+    networks:
+      - bas_net
+    ports:
+      - "5173:5173"
+    depends_on:
+      - gateway
+
+networks:
+  bas_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.0.0/24
