@@ -19,6 +19,9 @@ building automation (BAS), fire alarm, and low-voltage/security work in Ottawa�
 
 🚧 Under construction — see milestones below.
 
+- [x] M0: Repo skeleton, Docker Compose, docs stubs
+- [x] M1: Modbus energy meter sim + gateway reading it (`docker compose up modbus-meter gateway`, then `curl localhost:8000/points`)
+
 ## Architecture
 
 See [`docs/architecture.md`](docs/architecture.md) for the full breakdown. At a glance:

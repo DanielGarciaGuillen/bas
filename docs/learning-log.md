@@ -27,7 +27,38 @@ one likely interview question with a short answer. Write these in your own words
 
 ## M1 — Modbus meter sim + gateway reading it
 
-_TODO after milestone._
+- **Concept:** Modbus TCP is function-code + address + register-count based — there's no
+  notion of "named points" on the wire, just numbered registers (e.g. "read 1 input
+  register starting at address 0"). The meaning of a register (what it is, its units, its
+  scale factor) exists only in documentation — the register map — and both ends of the
+  wire have to agree on it out of band. That's exactly what `docs/modbus-register-map.md`
+  is for, and it's why real meter/BAS vendors publish one per product.
+- **Scaling:** real meters very often pack a decimal value into a plain 16-bit integer
+  register using a documented scale factor (register value ÷ 10 = kW here) rather than
+  sending a float directly, since classic Modbus registers are just 16-bit words. Reading
+  the raw register and dividing by the scale factor is the "decode" step every Modbus
+  client has to implement per the vendor's register map.
+- **Read-only vs. writable:** input registers (function code 0x04) are conventionally
+  read-only measured values (what this meter exposes); holding registers (0x03/0x06/0x10)
+  are read/write and typically hold configuration or setpoints. Coils and discrete inputs
+  are the 1-bit equivalents.
+- **Simplification:** cut the full register set (voltage, current, PF, kWh) down to just
+  kW for M1, to prove the device → gateway → API pipeline with the least code possible.
+  More registers are just "more of the same pattern" — see the "Planned" section in
+  `docs/modbus-register-map.md`.
+- **Pinned library version:** pymodbus's newest release (3.15.x) turned out to have
+  replaced the simple, documented datastore API with a new config-driven simulator model
+  mid-major-version — a reminder that "install the latest" isn't always right, especially
+  for a library you're using in an unconventional way (as a long-running mutable server,
+  not pymodbus's own intended "simulate fixed test data" use case). Checking the installed
+  API via `python -c "...inspect.signature..."` before writing code against it caught this
+  early instead of mid-debug.
+- **Interview question:** *"How would a gateway know that register 0 on this particular
+  meter means kW and not, say, voltage?"*
+  **Short answer:** It doesn't, unless told — the register map is out-of-band knowledge
+  (a spec sheet, or in this project, `docs/modbus-register-map.md`) that the gateway's
+  polling code is written against. Unlike BACnet, Modbus has no self-describing object
+  model.
 
 ## M2 — BACnet AHU + VAV devices
 
