@@ -21,6 +21,7 @@ building automation (BAS), fire alarm, and low-voltage/security work in Ottawaâ€
 
 - [x] M0: Repo skeleton, Docker Compose, docs stubs
 - [x] M1: Modbus energy meter sim + gateway reading it (`docker compose up modbus-meter gateway`, then `curl localhost:8000/points`)
+- [x] M2: BACnet AHU-1 (read + write) â€” `docker compose up modbus-meter bacnet-devices gateway`, then `curl -X POST localhost:8000/ahu-1/setpoint -d '{"value": 22.0}'` and watch `ahu-1.sat` drift toward it in `GET /points`
 
 ## Architecture
 

@@ -1,4 +1,4 @@
-from app.main import decode_kw
+from app.modbus_meter import decode_kw
 
 
 def test_decode_kw_applies_x10_scale_factor():
