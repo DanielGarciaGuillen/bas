@@ -1,5 +1,7 @@
 # BuildingOps Lab
 
+[![CI](https://github.com/DanielGarciaGuillen/bas/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielGarciaGuillen/bas/actions/workflows/ci.yml)
+
 A simulated small office building — HVAC, an energy meter, a fire alarm panel, and access
 control — speaking real industrial protocols (BACnet/IP and Modbus TCP), normalized by a
 gateway, and visualized in a React operator console with live graphics, trends, alarms, and

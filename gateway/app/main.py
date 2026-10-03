@@ -3,6 +3,7 @@
 Polls field devices (Modbus meter, BACnet AHU-1 so far), normalizes them into one point
 shape, and exposes them over REST. Fire/access events land in later milestones.
 """
+
 from __future__ import annotations
 
 import asyncio

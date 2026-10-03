@@ -8,6 +8,7 @@ Unlike Modbus (sims/modbus_meter), nothing here is "register 0 means kW" — eve
 carries its own object type, name, units, and status on the wire. That's the whole point
 of this module existing.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -88,9 +89,7 @@ def build_device() -> tuple[NormalApplication, AnalogInputObject, AnalogValueObj
 
 async def main() -> None:
     app, sat, setpoint = build_device()
-    log.info(
-        "AHU-1 (device %s) listening on %s", AHU1_DEVICE_INSTANCE, LOCAL_ADDRESS
-    )
+    log.info("AHU-1 (device %s) listening on %s", AHU1_DEVICE_INSTANCE, LOCAL_ADDRESS)
     try:
         await simulate_ahu1(sat, setpoint)
     finally:
