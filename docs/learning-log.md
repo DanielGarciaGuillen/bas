@@ -93,6 +93,36 @@ one likely interview question with a short answer. Write these in your own words
   BACnet supports device and object discovery (Who-Is/I-Am) that Modbus has no equivalent
   for.
 
+## Early console detour — a live points monitor, ahead of M3
+
+Jumped ahead of the milestone order to get a visual check on the gateway instead of
+curling `/points` by hand. Scoped deliberately small: one page, a live table, one
+setpoint-write form — not the floor plan/AHU graphic/trends from the full M7 console,
+which still needs M3-M6's concepts (zones, alarms, history) to mean anything.
+
+- **Concept:** the console never touches BACnet or Modbus directly — it only ever talks to
+  the gateway's REST API. That's the entire point of the normalized point model: the UI
+  layer doesn't need to know or care that `ahu-1.sat` came from BACnet and `meter-1.kw`
+  came from Modbus.
+- **Why it matters:** this is the same reason a real BAS front-end (a Niagara station's
+  web UI, a vendor's SCADA client) never speaks the field protocol itself — it talks to
+  the supervisory layer's own API/database, which already did the protocol work.
+- **A real CORS wrinkle:** the console (`localhost:5173`) and the gateway (`localhost:8000`)
+  are different origins even on the same machine, so the browser blocks the fetch unless
+  the gateway sends CORS headers. Caught immediately by actually loading the page in a
+  browser rather than trusting that "the API works" (proven via `curl`) means "the UI
+  works" — curl doesn't enforce CORS, browsers do.
+- **Stack choice:** picked the actual current stable releases (React 19.3, Vite 8.3,
+  TypeScript 7.0 — TS's new native/Go-based compiler) rather than assuming older
+  tutorial-era versions, then verified the whole toolchain (`npm run build`: typecheck +
+  bundle) before trusting it.
+- **Interview question:** *"Why would a BAS web client never talk BACnet directly from the
+  browser?"*
+  **Short answer:** BACnet/IP is UDP-broadcast-heavy and has no browser-native transport
+  (no `fetch`-over-BACnet); more fundamentally, the supervisory layer exists specifically
+  so protocol-speaking and presentation are separate concerns — the browser should only
+  ever need HTTP/WebSocket to one normalized API.
+
 ## M3 — Thermal model + sequences of operation
 
 _TODO after milestone._
