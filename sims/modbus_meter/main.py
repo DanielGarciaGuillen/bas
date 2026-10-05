@@ -4,6 +4,7 @@ M1 minimum: one value, kW, in one input register (FC04), address 0, scaled x10
 (register / 10 = kW). Documented in docs/modbus-register-map.md. More registers
 (voltage, current, kWh, ...) can be added the same way once the pipeline is proven.
 """
+
 from __future__ import annotations
 
 import asyncio

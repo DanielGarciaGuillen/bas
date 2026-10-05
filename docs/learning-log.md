@@ -60,9 +60,38 @@ one likely interview question with a short answer. Write these in your own words
   polling code is written against. Unlike BACnet, Modbus has no self-describing object
   model.
 
-## M2 — BACnet AHU + VAV devices
+## M2 — BACnet AHU-1 (self-describing points, read + write)
 
-_TODO after milestone._
+- **Concept:** BACnet objects describe themselves on the wire — type, name, units, status —
+  where Modbus registers are just numbers the register map gives meaning to. Reading
+  `objectName` and `units` straight off the device in `docs/bacnet-points-list.md`'s
+  implementation notes made that difference concrete rather than theoretical.
+- **Read vs. write:** `ReadProperty`/`WriteProperty` are genuinely symmetric services in
+  BACnet — any property on any object can in principle be read or written, subject to
+  whether the object is "commandable." That's a real architectural difference from Modbus,
+  where read-only input registers and read/write holding registers are separate address
+  spaces by convention, not by protocol enforcement.
+- **Commandable objects:** a plain `AnalogValueObject` isn't automatically writable from the
+  network — it needs the `Commandable` mixin (`AnalogValueObjectCmd`), which adds the
+  priority-array machinery BACnet uses to arbitrate between multiple writers (an operator
+  override vs. a schedule vs. a safety interlock, each at a different priority). Not needed
+  yet with one writer, but it's the mechanism that later makes the fire alarm interlock
+  (M4) able to override a setpoint without permanently clobbering it.
+- **Simplification:** one device (AHU-1), three points (a writable setpoint, the measured
+  value it drives, and a status point) — not the full AHU + 4-VAV point list from the
+  original brief. Same reasoning as M1's single register: prove read+write+live-response
+  first, then it's "more of the same pattern" for every other point.
+- **Library choice:** bacpypes3 directly, not BAC0. BAC0 wraps bacpypes3 for the common
+  case of *scanning* other people's devices; this project needs to *be* a device, which is
+  bacpypes3's own lower-level territory. Confirmed by reading `bacpypes3/local/*.py`'s
+  object classes and `bacpypes3/ipv4/app.py`'s `NormalApplication` before writing anything.
+- **Interview question:** *"What's the practical difference between how BACnet and Modbus
+  expose a point?"*
+  **Short answer:** Modbus is anonymous numbered registers — the meaning lives entirely in
+  out-of-band documentation both ends must agree on in advance. BACnet objects carry their
+  own type, name, units, and status as part of the protocol itself, which is also why
+  BACnet supports device and object discovery (Who-Is/I-Am) that Modbus has no equivalent
+  for.
 
 ## M3 — Thermal model + sequences of operation
 

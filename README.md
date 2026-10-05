@@ -1,5 +1,7 @@
 # BuildingOps Lab
 
+[![CI](https://github.com/DanielGarciaGuillen/bas/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielGarciaGuillen/bas/actions/workflows/ci.yml)
+
 A simulated small office building — HVAC, an energy meter, a fire alarm panel, and access
 control — speaking real industrial protocols (BACnet/IP and Modbus TCP), normalized by a
 gateway, and visualized in a React operator console with live graphics, trends, alarms, and
@@ -21,6 +23,7 @@ building automation (BAS), fire alarm, and low-voltage/security work in Ottawa�
 
 - [x] M0: Repo skeleton, Docker Compose, docs stubs
 - [x] M1: Modbus energy meter sim + gateway reading it (`docker compose up modbus-meter gateway`, then `curl localhost:8000/points`)
+- [x] M2: BACnet AHU-1 (read + write) — `docker compose up modbus-meter bacnet-devices gateway`, then `curl -X POST localhost:8000/ahu-1/setpoint -d '{"value": 22.0}'` and watch `ahu-1.sat` drift toward it in `GET /points`
 
 ## Architecture
 
