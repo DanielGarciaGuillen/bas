@@ -13,7 +13,7 @@ export default function App() {
             <header className="top">
                 <div>
                     <span className="eyebrow">BuildingOps Lab</span>
-                    <h1>{tab === 'live' ? 'Live Points' : 'Field Course'}</h1>
+                    <h1>{tab === 'live' ? 'Live Points' : 'Build Notes'}</h1>
                 </div>
                 <div className="tabs" role="tablist">
                     <button
@@ -30,7 +30,7 @@ export default function App() {
                         className={tab === 'learn' ? 'active' : ''}
                         onClick={() => setTab('learn')}
                     >
-                        Learn
+                        Notes
                     </button>
                 </div>
             </header>

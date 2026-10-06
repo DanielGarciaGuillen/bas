@@ -17,12 +17,15 @@ services:
       bas_net:
         ipv4_address: 10.10.0.12
 
-  # Fire alarm panel sim (REST/events). Implemented in M4.
+  # Fire alarm panel sim (REST, not a field protocol — see docs/fire-alarm-notes.md).
+  # Implemented in M4; drives the AHU-1 fan-shutdown interlock via the gateway.
   fire-panel:
     build: ./sims/fire_panel
     networks:
       bas_net:
         ipv4_address: 10.10.0.13
+    ports:
+      - "8001:8001"
 
   # Access control sim (REST/events). Implemented in M5.
   access-control:

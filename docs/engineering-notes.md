@@ -1,7 +1,7 @@
-# Learning Log
+# Engineering Notes
 
-Notes for Daniel: the concept behind each milestone, why it matters in real buildings, and
-one likely interview question with a short answer. Write these in your own words as you go.
+Design decisions, debugging trails, and why things are built the way they are, milestone
+by milestone — kept here instead of scattered across commit messages.
 
 ## M0 — Foundations (repo skeleton, Docker Compose, docs)
 
@@ -18,13 +18,6 @@ one likely interview question with a short answer. Write these in your own words
   devices" plus the gateway plus the console — come up with one command and talk to each
   other over an isolated virtual network, standing in for a real site's segmented VLANs
   (see `docs/network-design.md`).
-- **Interview question:** *"Why would a building have both field-level protocols like
-  BACnet/Modbus and a web-based front end?"*
-  **Short answer:** Field protocols are what the controllers natively speak (lightweight,
-  deterministic, built for control networks); the web front end is for human operators and
-  needs a translation layer (the gateway/supervisor) that normalizes different protocols
-  into one point model and exposes them over HTTP/WebSocket.
-
 ## M1 — Modbus meter sim + gateway reading it
 
 - **Concept:** Modbus TCP is function-code + address + register-count based — there's no
@@ -53,13 +46,6 @@ one likely interview question with a short answer. Write these in your own words
   not pymodbus's own intended "simulate fixed test data" use case). Checking the installed
   API via `python -c "...inspect.signature..."` before writing code against it caught this
   early instead of mid-debug.
-- **Interview question:** *"How would a gateway know that register 0 on this particular
-  meter means kW and not, say, voltage?"*
-  **Short answer:** It doesn't, unless told — the register map is out-of-band knowledge
-  (a spec sheet, or in this project, `docs/modbus-register-map.md`) that the gateway's
-  polling code is written against. Unlike BACnet, Modbus has no self-describing object
-  model.
-
 ## M2 — BACnet AHU-1 (self-describing points, read + write)
 
 - **Concept:** BACnet objects describe themselves on the wire — type, name, units, status —
@@ -85,14 +71,6 @@ one likely interview question with a short answer. Write these in your own words
   case of *scanning* other people's devices; this project needs to *be* a device, which is
   bacpypes3's own lower-level territory. Confirmed by reading `bacpypes3/local/*.py`'s
   object classes and `bacpypes3/ipv4/app.py`'s `NormalApplication` before writing anything.
-- **Interview question:** *"What's the practical difference between how BACnet and Modbus
-  expose a point?"*
-  **Short answer:** Modbus is anonymous numbered registers — the meaning lives entirely in
-  out-of-band documentation both ends must agree on in advance. BACnet objects carry their
-  own type, name, units, and status as part of the protocol itself, which is also why
-  BACnet supports device and object discovery (Who-Is/I-Am) that Modbus has no equivalent
-  for.
-
 ## Early console detour — a live points monitor, ahead of M3
 
 Jumped ahead of the milestone order to get a visual check on the gateway instead of
@@ -116,19 +94,12 @@ which still needs M3-M6's concepts (zones, alarms, history) to mean anything.
   TypeScript 7.0 — TS's new native/Go-based compiler) rather than assuming older
   tutorial-era versions, then verified the whole toolchain (`npm run build`: typecheck +
   bundle) before trusting it.
-- **Interview question:** *"Why would a BAS web client never talk BACnet directly from the
-  browser?"*
-  **Short answer:** BACnet/IP is UDP-broadcast-heavy and has no browser-native transport
-  (no `fetch`-over-BACnet); more fundamentally, the supervisory layer exists specifically
-  so protocol-speaking and presentation are separate concerns — the browser should only
-  ever need HTTP/WebSocket to one normalized API.
-
-## Console hardening — adopting real project hygiene, and an in-app Learn tab
+## Console hardening — adopting real project hygiene, and an in-app Notes tab
 
 Re-architected the console to match the conventions of a production codebase (a personal
-one, `ott-next`) rather than a quick prototype, and folded the field-course content
-directly into the app as a **Learn** tab (replacing a standalone course page kept outside
-the repo).
+one, `ott-next`) rather than a quick prototype, and folded the build-notes content
+directly into the app as a **Notes** tab (replacing a standalone page kept outside the
+repo).
 
 - **Concept:** `oxlint`/`oxfmt` are Rust-based (via the Oxc project) drop-ins for
   ESLint/Prettier — same job, startlingly faster, because they skip the JS AST entirely.
@@ -141,10 +112,10 @@ the repo).
   Actions convention would suggest. Checked the action's actual `action.yml` via `gh api`
   rather than assuming the naming pattern — the same "check the source" habit that caught
   pymodbus's and pnpm's version quirks earlier.
-- **Why fold the course into the app:** a separate course page is one more thing to keep in
+- **Why fold the notes into the app:** a separate notes page is one more thing to keep in
   sync by hand every milestone. A `MODULES` array of React components next to the code it
   documents can't drift the same way a copy-pasted artifact can — and it ships with the
-  portfolio piece itself instead of living beside it.
+  project itself instead of living beside it.
 - **Testable extraction:** pulled `protocolFor`/`formatValue` out of the table component
   into `lib/points.ts` purely so they'd have something to unit-test — the same "extract the
   pure decode step" pattern used for the gateway's Modbus/BACnet polling.
@@ -210,19 +181,42 @@ the repo).
   bugs in one milestone that only a real cold `docker compose up` surfaced — a reminder
   that "unit tests pass" and "the stack actually comes up from nothing" are different
   claims.
-- **Interview question:** *"Why would a control loop that converges fine in testing
-  oscillate forever in the field?"*
-  **Short answer:** usually a discrete-time simulation or control loop updating faster
-  than the physical actuator it's commanding can actually move — a damper or valve that's
-  told to jump straight to a new position every cycle, with no slew-rate limit modeling
-  (or respecting) how long the real hardware takes to get there, can turn a stable-looking
-  control law into a bang-bang oscillator once it meets real (or realistically simulated)
-  hardware.
-
 ## M4 — Fire alarm panel + interlock
 
-_TODO after milestone._
-
+- **Concept:** a fire alarm panel is its own system, deliberately kept separate from the
+  BAS — it doesn't speak BACnet or Modbus. Simulating it over plain REST (not a field
+  protocol) is the point, not a shortcut: the gateway polls it the same *shape* it polls
+  BACnet/Modbus, but the panel itself never pretends to be a field device.
+- **Discovering BACnet's priority array actually solves the interlock problem for free:**
+  before writing any interlock code, tested directly against the real AHU-1 objects
+  whether a high-priority (`priority=1`) `WriteProperty` really does survive the
+  schedule's ongoing low-priority (`priority=16`, the default) writes — it does, and
+  *relinquishing* (writing `Null(())` at that priority, not a plain Python `None`, which
+  doesn't cast) hands control straight back to whatever the schedule is currently doing.
+  No "remember what the fan was doing before the alarm" logic needed anywhere — BACnet's
+  own mechanism does that. Verified empirically with a throwaway client/server script
+  before writing a line of `gateway/app/bacnet_ahu.py`, rather than assuming it would work
+  from reading the spec/library docs.
+- **The same shared-mutable-default bug, in a new disguise:** `Panel()`'s default zones
+  were built from a module-level `DEFAULT_ZONES` list — reused by *reference*, not copied.
+  One test's `trigger()` call mutated a `Zone` object that every other `Panel()` instance
+  in the same process was secretly sharing, so tests passed alone and failed together.
+  Same root cause as a mutable default argument, just one level removed (a shared default
+  *factory* producing shared *contents*, not a shared default argument itself) — worth
+  recognizing the pattern, not just the textbook version of it.
+- **Keeping "clear" and "reset" as separate actions, on purpose:** a real panel can't be
+  reset while a zone is still physically in alarm — clearing the smoke and resetting the
+  panel are two different real-world events, and collapsing them into one action would
+  hide a safety-relevant distinction. `sims/fire_panel/panel.py`'s `reset()` enforces this
+  with a typed `ResetBlocked` exception (naming which zones are still active), surfaced to
+  the console as an HTTP 409 — an error a demo can deliberately trigger and explain, not
+  just a thing to avoid.
+- **A known, documented gap left alone on purpose:** the interlock forces AHU-1's fan and
+  damper off, but the AHU's own PI loops (unaware the fire panel exists) keep computing
+  valve positions as if the fan were still running. Fixing that would mean teaching the
+  AHU's sequence about the fire panel — exactly the boundary the interlock's own design
+  (override from outside, via the priority array) was built to avoid crossing. Documented
+  in `docs/sequences-of-operation.md` §7 instead of "fixed" by blurring that line.
 ## M5 — Access control sim
 
 _TODO after milestone._
