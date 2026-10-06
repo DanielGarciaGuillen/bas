@@ -45,6 +45,21 @@ jobs:
       - run: python -m pytest -q
         working-directory: gateway
 
+  sim-tests:
+    name: AHU-1 sequence-of-operation tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: sims/bacnet_devices/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+        working-directory: sims/bacnet_devices
+      - run: python -m pytest -q
+        working-directory: sims/bacnet_devices
+
   console:
     name: Console lint, format, typecheck, test, build
     runs-on: ubuntu-latest

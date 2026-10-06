@@ -34,8 +34,8 @@ export const MODULES: Module[] = [
                         exact page you're looking at.
                     </ConceptCard>
                     <ConceptCard title="Up next">
-                        Sequences of operation — turning AHU-1's bare setpoint write into a real PI
-                        loop and an economizer.
+                        Fire alarm panel + interlock — the fan-shutdown sequence the M3 commandable
+                        points were built to support.
                     </ConceptCard>
                     <ConceptCard title="Why one network">
                         A real site segments IT / BAS / security / fire onto separate VLANs (see{' '}
@@ -219,6 +219,80 @@ export const MODULES: Module[] = [
         )
     },
     {
+        id: 'm3',
+        navLabel: 'M3 · Sequence of operation',
+        status: 'done',
+        heading: 'M3 · AHU-1 sequence of operation',
+        tag: 'a real PI loop, an economizer, and a schedule — not a lag anymore',
+        body: (
+            <>
+                <p>
+                    M2's setpoint write already moved AHU-1's simulated supply air temp, but only
+                    through a crude lag. M3 replaces that with the controller's actual firmware
+                    logic — which is also why this lives in <code>sims/bacnet_devices/</code>, not
+                    the gateway: a sequence of operation runs <em>on the field controller</em>, the
+                    same way it would on a real AHU. The gateway only ever reads values and writes
+                    setpoints, exactly like it did before.
+                </p>
+                <div className="concept-grid">
+                    <ConceptCard title="Split-range control">
+                        One signed PI output (negative = cool, positive = heat) splits into two
+                        valve commands, so the loop structurally can't call for heating and cooling
+                        at once.
+                    </ConceptCard>
+                    <ConceptCard title="Economizer">
+                        Free outside-air cooling — but only when the loop is actually calling for
+                        cooling and the outside air is usefully colder than return air.
+                    </ConceptCard>
+                    <ConceptCard title="Two PI loops">
+                        SAT tracks the setpoint via the valves; duct static pressure tracks its own
+                        setpoint via fan speed, on a simple quadratic fan curve.
+                    </ConceptCard>
+                </div>
+
+                <FieldNote title="integral windup, misdiagnosed twice">
+                    <p>
+                        First pass clamped the controller's integral term directly to the output
+                        range (±100). With a small <code>ki</code> (0.01), that capped the
+                        integral's <em>contribution</em> at 1.0 — nowhere near enough to ever close
+                        a steady error. The loop stabilized exactly 4°C off setpoint and stayed
+                        there. Fix: clamp the integral to <code>±(output_range / ki)</code>, the
+                        textbook anti-windup bound.
+                    </p>
+                </FieldNote>
+
+                <FieldNote title="a textbook limit cycle">
+                    <p>
+                        Even after that fix, a cooling scenario still wouldn't settle. Cause: the
+                        economizer's OA damper snapped instantly between 20% and 90% every tick,
+                        swinging the mixed-air temperature so hard each way that the SAT loop
+                        oscillated forever — a real bang-bang limit cycle, invisible to a
+                        per-function unit test and only visible by simulating hundreds of ticks end
+                        to end. Fix: give every actuator a bounded slew rate (
+                        <code>ramp_toward</code>) — which is also just how real actuators behave.
+                    </p>
+                </FieldNote>
+
+                <FieldNote title="two deployment bugs the unit tests couldn't see">
+                    <p>
+                        <code>control.py</code> was a new file; the Dockerfile only copied{' '}
+                        <code>main.py</code> — built fine, crashed instantly on start with{' '}
+                        <code>ModuleNotFoundError</code>. Separately, a cold{' '}
+                        <code>docker compose up</code> let the gateway's first BACnet read race
+                        AHU-1 still starting, and it hung forever with no timeout instead of
+                        raising. Neither was visible from pytest running on the host — both only
+                        showed up by actually cold-starting the real containers.
+                    </p>
+                </FieldNote>
+
+                <FlashCard
+                    q="Why would a control loop that converges fine in testing oscillate forever in the field?"
+                    a="Usually a loop updating faster than the physical actuator it's commanding can actually move — a damper or valve told to jump straight to a new position every cycle, with no slew-rate limit modeling how long real hardware takes to get there, can turn a stable-looking control law into a bang-bang oscillator once it meets real (or realistically simulated) hardware."
+                />
+            </>
+        )
+    },
+    {
         id: 'console',
         navLabel: 'Console (this page)',
         status: 'done',
@@ -251,23 +325,12 @@ export const MODULES: Module[] = [
     },
     {
         id: 'later',
-        navLabel: 'M3 – M10 · Rest of the build',
+        navLabel: 'M4 – M10 · Rest of the build',
         status: 'next',
-        heading: 'M3 – M10 · Everything after that',
+        heading: 'M4 – M10 · Everything after that',
         tag: 'one line each, so the shape of the build stays visible',
         body: (
             <div className="teaser-list">
-                <div className="teaser">
-                    <span className="t-id">M3</span>
-                    <div>
-                        <h3>Sequences of operation</h3>
-                        <p>
-                            A real PI loop driving AHU-1's valves toward the setpoint, an
-                            economizer, and an occupied/unoccupied schedule — replacing today's
-                            crude lag.
-                        </p>
-                    </div>
-                </div>
                 <div className="teaser">
                     <span className="t-id">M4</span>
                     <div>

@@ -66,3 +66,12 @@ async def write_ahu1_setpoint(body: SetpointWrite) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"BACnet write failed: {exc}") from exc
     return {"id": "ahu-1.sat_setpoint", "value": body.value}
+
+
+@app.post("/ahu-1/static-pressure-setpoint")
+async def write_ahu1_static_pressure_setpoint(body: SetpointWrite) -> dict:
+    try:
+        await bacnet_ahu.write_static_pressure_setpoint(body.value)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"BACnet write failed: {exc}") from exc
+    return {"id": "ahu-1.static_pressure_setpoint", "value": body.value}
