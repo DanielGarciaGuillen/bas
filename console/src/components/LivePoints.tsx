@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import FirePanelControls from '@/components/FirePanelControls';
 import { fetchPoints, writeAhu1Setpoint, type Point } from '@/lib/api';
 import { formatValue, protocolFor } from '@/lib/points';
 
@@ -133,6 +134,8 @@ export default function LivePoints() {
                 </button>
                 {writeMessage && <span className="write-message">{writeMessage}</span>}
             </form>
+
+            <FirePanelControls />
         </>
     );
 }

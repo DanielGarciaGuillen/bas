@@ -30,12 +30,12 @@ export const MODULES: Module[] = [
                 <ArchitectureDiagram />
                 <div className="concept-grid">
                     <ConceptCard title="Live now">
-                        Modbus meter (read-only) and BACnet AHU-1 (read + write), both feeding this
-                        exact page you're looking at.
+                        Modbus meter, BACnet AHU-1 with a real sequence of operation, and a fire
+                        panel whose alarm can shut the AHU down — try the demo buttons below.
                     </ConceptCard>
                     <ConceptCard title="Up next">
-                        Fire alarm panel + interlock — the fan-shutdown sequence the M3 commandable
-                        points were built to support.
+                        Access control — door events, forced/held alarms, access levels and
+                        schedules.
                     </ConceptCard>
                     <ConceptCard title="Why one network">
                         A real site segments IT / BAS / security / fire onto separate VLANs (see{' '}
@@ -67,9 +67,9 @@ export const MODULES: Module[] = [
                         vendor head-end) — the only thing that speaks every protocol.
                     </ConceptCard>
                     <ConceptCard title="Why it matters">
-                        Interviewers for controls/BAS roles probe this constantly: field protocol
-                        vs. supervisory layer vs. operator UI are three different jobs with three
-                        different failure modes.
+                        Field protocol, supervisory layer, and operator UI are three different jobs
+                        with three different failure modes — keeping them separate services makes
+                        each one easy to reason about on its own.
                     </ConceptCard>
                 </div>
                 <FlashCard
@@ -296,7 +296,7 @@ export const MODULES: Module[] = [
         id: 'console',
         navLabel: 'Console (this page)',
         status: 'done',
-        heading: "This console, and why it's also this tutorial",
+        heading: "This console, and why it's also where these notes live",
         tag: "the UI only ever talks to the gateway's API",
         body: (
             <>
@@ -324,23 +324,84 @@ export const MODULES: Module[] = [
         )
     },
     {
+        id: 'm4',
+        navLabel: 'M4 · Fire alarm interlock',
+        status: 'done',
+        heading: 'M4 · Fire alarm panel + AHU-1 interlock',
+        tag: 'a REST panel, and a BACnet priority override from outside the controller',
+        body: (
+            <>
+                <p>
+                    The fire panel sim speaks plain REST — on purpose. A real fire alarm panel
+                    doesn't speak BACnet or Modbus to the BAS; monitoring/annunciation is its own
+                    system, kept deliberately separate. The gateway polls it the same <em>shape</em>{' '}
+                    it polls BACnet and Modbus, just over HTTP.
+                </p>
+                <div className="concept-grid">
+                    <ConceptCard title="Acknowledge / silence / reset">
+                        A new condition clears any old acknowledge/silence. Reset is rejected (HTTP
+                        409, naming the zone) until every active zone's field device has itself
+                        cleared — matching real practice.
+                    </ConceptCard>
+                    <ConceptCard title="The interlock">
+                        Any zone in ALARM makes the gateway write AHU-1's fan command and OA damper
+                        at BACnet priority 1 — one level above the schedule's priority 16.
+                    </ConceptCard>
+                    <ConceptCard title="Relinquish, don't restore">
+                        Clearing the interlock means withdrawing the priority-1 entry, not writing a
+                        value back. The schedule regains control automatically — nothing needs to
+                        remember what it was doing.
+                    </ConceptCard>
+                </div>
+
+                <FieldNote title="verified before writing any interlock code">
+                    <p>
+                        Before touching <code>gateway/app/bacnet_ahu.py</code>, a throwaway
+                        client/server script confirmed directly: does a priority-1{' '}
+                        <code>WriteProperty</code> really survive the schedule's ongoing priority-16
+                        writes? It does. Does relinquishing need a value, or something else? It
+                        needs <code>primitivedata.Null(())</code> — a bare Python <code>None</code>{' '}
+                        doesn't cast. Checked against the real objects before it mattered, not
+                        assumed from the spec.
+                    </p>
+                </FieldNote>
+
+                <FieldNote title="the same shared-mutable-default bug, in a new disguise">
+                    <p>
+                        <code>Panel()</code>'s default zones were built from a module-level list —
+                        reused by <em>reference</em>, not copied. One test's <code>trigger()</code>{' '}
+                        secretly mutated a <code>Zone</code> every other <code>Panel()</code> in the
+                        same process was sharing, so tests passed alone and failed together. Same
+                        root cause as a mutable default argument, one level removed.
+                    </p>
+                </FieldNote>
+
+                <FieldNote title="a known gap, left alone on purpose">
+                    <p>
+                        The interlock forces the fan/damper off, but AHU-1's own PI loops don't know
+                        the fire panel exists — they keep computing valve positions as if the fan
+                        were still running. Fixing that would mean teaching the AHU's sequence about
+                        the fire panel, exactly the boundary this design was built to avoid
+                        crossing. Documented, not silently fixed — see{' '}
+                        <code>docs/sequences-of-operation.md</code> §7.
+                    </p>
+                </FieldNote>
+
+                <FlashCard
+                    q="Why implement a fire-to-HVAC interlock as an override from outside the AHU controller, instead of adding fire-alarm logic to the AHU's own sequence?"
+                    a="Separation of concerns and failure isolation — a controller's sequence shouldn't need to know about every system that might override it (fire, a manual command, demand response). BACnet's priority array exists precisely so independent systems can each assert control at an appropriate priority without any of them needing to know about the others."
+                />
+            </>
+        )
+    },
+    {
         id: 'later',
-        navLabel: 'M4 – M10 · Rest of the build',
+        navLabel: 'M5 – M10 · Rest of the build',
         status: 'next',
-        heading: 'M4 – M10 · Everything after that',
+        heading: 'M5 – M10 · Everything after that',
         tag: 'one line each, so the shape of the build stays visible',
         body: (
             <div className="teaser-list">
-                <div className="teaser">
-                    <span className="t-id">M4</span>
-                    <div>
-                        <h3>Fire alarm panel + interlock</h3>
-                        <p>
-                            NORMAL / ALARM / TROUBLE / SUPERVISORY, and the fan-shutdown interlock
-                            tying life-safety into HVAC.
-                        </p>
-                    </div>
-                </div>
                 <div className="teaser">
                     <span className="t-id">M5</span>
                     <div>

@@ -1,10 +1,9 @@
 # Sequences of Operation — AHU-1
 
-_Status: M3 implemented, draft wording — Daniel to review and rewrite in his own words
-(per PLAN.md §11). This is the core learning piece of the project: a sequence of operation
-(SOO) is the plain-English spec a controls engineer writes and a technician/commissioning
-agent verifies against. The tested, pure-math version of everything below lives in
-`sims/bacnet_devices/control.py`; this file is the English translation of that code._
+_Status: M3 implemented, draft wording. A sequence of operation (SOO) is the plain-English
+spec a controls engineer writes and a technician/commissioning agent verifies against. The
+tested, pure-math version of everything below lives in `sims/bacnet_devices/control.py`;
+this file is the English translation of that code._
 
 ## 1. Occupancy schedule
 
@@ -76,13 +75,29 @@ reason — modeling that turned out to be load-bearing, not cosmetic. See the gi
 
 ## 6. Fire alarm fan shutdown (interlock) — M4
 
-Not yet implemented. When built: any fire `ALARM` will command AHU-1's supply fan OFF and
-the OA damper closed, logged as an interlock event, with control returning to normal on
-reset. AHU1-FAN-COMMAND is already a *commandable* BACnet object (`AnalogOutputObject`/
-`BinaryOutputObject` both carry BACnet's priority array) specifically so the M4 interlock
-can override it at a higher priority without permanently clobbering the schedule's own
-command — see the console's Learn tab, M2 module, for why that mechanism exists.
+Implemented. Any fire `ALARM` makes the gateway command AHU-1's supply fan OFF and the OA
+damper closed, at BACnet priority 1 — one level above anything the schedule (which writes
+at the default priority 16) can do. AHU1-FAN-COMMAND and AHU1-OA-DAMPER are *commandable*
+BACnet objects specifically so this works: the interlock's priority-1 write always wins
+over the schedule's priority-16 write, for exactly as long as it's held, and *relinquishing*
+it (not writing a value, but withdrawing the priority-1 entry) hands control straight back
+to whatever the schedule is currently doing — no gateway-side bookkeeping required. See
+`docs/fire-alarm-notes.md` for the full interlock behavior and `gateway/app/bacnet_ahu.py`'s
+`engage_fire_interlock()`/`release_fire_interlock()`.
+
+## 7. A known gap: the valves don't know the fan is off
+
+The interlock overrides AHU-1's *output* points (fan command, OA damper) from outside the
+controller — but AHU-1's own internal sequence (the PI loops in `control.py`) has no idea
+a fire interlock exists; it keeps computing heating/cooling valve positions as if the fan
+were still running on its normal schedule. With the fan actually off, those valve
+positions are moot (no air is moving), but a commissioning review of a real system would
+flag this as sloppy: a fire-aware controller sequence should also drive its valves closed,
+not just the fan and damper. Left as a known, documented simplification rather than giving
+the AHU's own control loop a backdoor awareness of the fire panel, which would blur the
+boundary section 6 above depends on (the interlock lives *outside* the controller,
+overriding its outputs — it doesn't reach inside and change how the controller thinks).
 
 > Real world: see the disclaimer in `docs/fire-alarm-notes.md` — a real fan-shutdown
 > sequence is part of the fire alarm system's engineered, often hardwired interlock, not
-> application software running in a BAS controller.
+> application software running in a BAS gateway.

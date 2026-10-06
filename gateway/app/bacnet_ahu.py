@@ -18,7 +18,7 @@ import os
 from bacpypes3.ipv4.app import NormalApplication
 from bacpypes3.local.device import DeviceObject
 from bacpypes3.pdu import IPv4Address
-from bacpypes3.primitivedata import ObjectIdentifier
+from bacpypes3.primitivedata import Null, ObjectIdentifier
 
 from .state import points
 
@@ -36,6 +36,16 @@ READ_TIMEOUT_S = 5.0
 
 AV_SAT_SETPOINT = ObjectIdentifier(("analogValue", 1))
 AV_STATIC_PRESSURE_SETPOINT = ObjectIdentifier(("analogValue", 2))
+AO_OA_DAMPER = ObjectIdentifier(("analogOutput", 4))
+BO_FAN_COMMAND = ObjectIdentifier(("binaryOutput", 1))
+
+# BACnet priorities 1-16, lower number wins. The schedule in sims/bacnet_devices/main.py
+# writes at the default (16, lowest) by setting presentValue directly — see that file's
+# docstring. The fire interlock writes here at 1 so it always wins over the schedule,
+# and *relinquishes* (writes Null at the same priority) to hand control back, rather
+# than writing a value — verified this is how bacpypes3 expects it (a bare Python None
+# doesn't cast; it has to be primitivedata.Null(())).
+INTERLOCK_PRIORITY = 1
 
 # (point key, BACnet object, display name, units) — matches sims/bacnet_devices/main.py's
 # object list exactly. Order here is display order, not wire order.
@@ -90,6 +100,42 @@ async def write_static_pressure_setpoint(value: float) -> None:
     await asyncio.wait_for(
         _client_app().write_property(
             AHU_ADDRESS, AV_STATIC_PRESSURE_SETPOINT, "presentValue", value
+        ),
+        timeout=READ_TIMEOUT_S,
+    )
+
+
+async def engage_fire_interlock() -> None:
+    """Fan OFF, OA damper closed, at a priority the normal schedule can't override."""
+    app = _client_app()
+    await asyncio.wait_for(
+        app.write_property(
+            AHU_ADDRESS, BO_FAN_COMMAND, "presentValue", False, priority=INTERLOCK_PRIORITY
+        ),
+        timeout=READ_TIMEOUT_S,
+    )
+    await asyncio.wait_for(
+        app.write_property(
+            AHU_ADDRESS, AO_OA_DAMPER, "presentValue", 0.0, priority=INTERLOCK_PRIORITY
+        ),
+        timeout=READ_TIMEOUT_S,
+    )
+
+
+async def release_fire_interlock() -> None:
+    """Relinquish the interlock's priority-1 commands — control returns to whatever
+    the schedule (priority 16) is writing, automatically, via BACnet's own priority
+    array; nothing here needs to know what that value should be."""
+    app = _client_app()
+    await asyncio.wait_for(
+        app.write_property(
+            AHU_ADDRESS, BO_FAN_COMMAND, "presentValue", Null(()), priority=INTERLOCK_PRIORITY
+        ),
+        timeout=READ_TIMEOUT_S,
+    )
+    await asyncio.wait_for(
+        app.write_property(
+            AHU_ADDRESS, AO_OA_DAMPER, "presentValue", Null(()), priority=INTERLOCK_PRIORITY
         ),
         timeout=READ_TIMEOUT_S,
     )

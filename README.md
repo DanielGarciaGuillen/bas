@@ -2,74 +2,45 @@
 
 [![CI](https://github.com/DanielGarciaGuillen/bas/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielGarciaGuillen/bas/actions/workflows/ci.yml)
 
-A simulated small office building — HVAC, an energy meter, a fire alarm panel, and access
-control — speaking real industrial protocols (BACnet/IP and Modbus TCP), normalized by a
-gateway, and visualized in a React operator console with live graphics, trends, alarms, and
-work orders.
-
-Built as a portfolio project while moving from React/React Native development into
-building automation (BAS), fire alarm, and low-voltage/security work in Ottawa–Gatineau.
+A simulated small office building — HVAC, an energy meter, a fire alarm panel, and (soon)
+access control — speaking real protocols (BACnet/IP, Modbus TCP), normalized by a gateway,
+and exposed through a React console.
 
 **Everything here is simulated. No real equipment, no internet exposure.**
 
-> ⚠️ This project is for learning and portfolio purposes only. Real fire alarm systems are
-> life-safety systems governed by the Fire Code and CAN/ULC standards (S524, S536, S537,
-> S1001) and must only be worked on by qualified, registered technicians. See
-> [`docs/fire-alarm-notes.md`](docs/fire-alarm-notes.md).
+> ⚠️ Simulation only. Real fire alarm systems are life-safety systems governed by the Fire
+> Code and CAN/ULC standards, and must only be worked on by qualified, registered
+> technicians. See [`docs/fire-alarm-notes.md`](docs/fire-alarm-notes.md).
 
 ## Status
 
-🚧 Under construction — see milestones below.
-
-- [x] M0: Repo skeleton, Docker Compose, docs stubs
-- [x] M1: Modbus energy meter sim + gateway reading it (`docker compose up modbus-meter gateway`, then `curl localhost:8000/points`)
-- [x] M2: BACnet AHU-1 (read + write) — `docker compose up modbus-meter bacnet-devices gateway`, then `curl -X POST localhost:8000/ahu-1/setpoint -d '{"value": 22.0}'` and watch `ahu-1.sat` drift toward it in `GET /points`
-- [x] Console (early, minimal): a live points table + a setpoint-write form + an in-app **Learn** tab (the course lives in the app now, not a separate doc), ahead of the full M7 operator console — `docker compose up` now brings up all four implemented services; open `http://localhost:5173`
-- [x] M3: AHU-1 sequence of operation — occupancy schedule, economizer, a PI loop driving the heating/cooling valves, a second PI loop driving fan speed off duct static pressure (`sims/bacnet_devices/control.py`, unit-tested). Write the SAT setpoint from the console and watch the whole chain respond within a couple of minutes
-
-## Architecture
-
-See [`docs/architecture.md`](docs/architecture.md) for the full breakdown. At a glance:
-
-```
- ┌───────────────────────── Docker network "bas_net" ─────────────────────────┐
- │                                                                           │
- │  [AHU-1 BACnet device]   [VAV-101..104 BACnet devices]   [Meter Modbus]   │
- │          │                         │                         │            │
- │          └────── BACnet/IP UDP 47808 ──────┐        Modbus TCP 502        │
- │                                            ▼                 │            │
- │  [Fire Alarm Panel sim]  ──REST/events──► [Gateway (FastAPI)] ◄┘           │
- │  [Access Control sim]    ──REST/events──►   • polling + COV-like updates  │
- │                                             • point tagging (Haystack)     │
- │                                             • alarm engine + interlocks    │
- │                                             • history (SQLite)             │
- │                                             • work orders (CMMS-lite)      │
- │                                             • WebSocket + REST API         │
- │                                                     │                      │
- └─────────────────────────────────────────────────────┼──────────────────────┘
-                                                       ▼
-                                   [React + TypeScript Operator Console]
-                    Floor plan · AHU graphic · Trends · Alarms · Fire panel ·
-                    Access log · Work orders · Network diagram
-```
+M0–M4 done: Modbus meter, BACnet AHU-1 with a real PI-loop sequence of operation, and a
+fire alarm panel whose alarm shuts the AHU down via a BACnet priority override. M5 (access
+control) is next. Design decisions and debugging notes live in the console's **Notes** tab
+and [`docs/engineering-notes.md`](docs/engineering-notes.md).
 
 ## Running it
 
-Fire panel and access control sims aren't built yet (M4/M5), so a bare `docker compose up`
-will fail trying to build them. Run the services that exist:
+Access control (M5) isn't built yet, so run the services that exist:
 
 ```
-docker compose up --build modbus-meter bacnet-devices gateway console
+docker compose up --build modbus-meter bacnet-devices fire-panel gateway console
 ```
 
-- Console: `http://localhost:5173` — **Live** tab (points table + setpoint write) and a
-  **Learn** tab (the field course, one module per milestone, grows as the build does)
+- Console: `http://localhost:5173` — live points, setpoint writes, fire panel demo
+  controls, and the Notes tab
 - Gateway API docs: `http://localhost:8000/docs`
 
-The console here is an early, minimal monitor — a live table and one write control — not
-the full M7 operator console (floor plan, AHU graphic, trends, alarms, fire annunciator).
-It'll grow into that over the remaining milestones rather than being replaced. Local dev
-without Docker: `cd console && pnpm install && pnpm run dev`.
+Local dev without Docker: `cd console && pnpm install && pnpm run dev`.
+
+## Architecture
+
+```
+ [AHU-1 BACnet] [Meter Modbus] [Fire Panel REST] ──► [Gateway :8000] ──► [Console :5173]
+```
+
+One Docker network stands in for what a real site splits across VLANs. Full breakdown:
+[`docs/architecture.md`](docs/architecture.md).
 
 ## Docs
 
@@ -77,27 +48,20 @@ without Docker: `cd console && pnpm install && pnpm run dev`.
 - [`docs/sequences-of-operation.md`](docs/sequences-of-operation.md) — HVAC control logic in plain English
 - [`docs/network-design.md`](docs/network-design.md) — VLANs, IP plan, ports & firewall rules
 - [`docs/modbus-register-map.md`](docs/modbus-register-map.md) — energy meter register map
-- [`docs/bacnet-points-list.md`](docs/bacnet-points-list.md) — BACnet points list (like a real BAS submittal)
-- [`docs/fire-alarm-notes.md`](docs/fire-alarm-notes.md) — panel states, interlock, standards disclaimer
-- [`docs/learning-log.md`](docs/learning-log.md) — concepts learned, interview talking points
+- [`docs/bacnet-points-list.md`](docs/bacnet-points-list.md) — BACnet points list
+- [`docs/fire-alarm-notes.md`](docs/fire-alarm-notes.md) — panel states, interlock, disclaimer
+- [`docs/engineering-notes.md`](docs/engineering-notes.md) — design decisions, debugging notes
 
 ## Tech stack
 
 | Layer | Choice |
 |---|---|
-| Device simulators | Python 3.12, BAC0/bacpypes3, pymodbus |
-| Fire alarm & access sims | Python (FastAPI/asyncio) |
-| Gateway | Python FastAPI, SQLite, asyncio |
-| Frontend | React 19 + TypeScript 7 + Vite 8, pnpm (Recharts lands with the full M7 console) |
-| Orchestration | Docker Compose |
+| Device sims | Python 3.12, bacpypes3, pymodbus |
+| Gateway | Python, FastAPI |
+| Console | React 19, TypeScript 7, Vite 8, pnpm |
 | Lint/format | ruff (Python), oxlint + oxfmt (console) |
-| Tests | pytest (gateway, AHU-1 control logic), Vitest (console) |
-
-## What I learned
-
-See [`docs/learning-log.md`](docs/learning-log.md) for Daniel's own notes (filled in
-milestone by milestone) — the console's **Learn** tab covers the same ground as a visitor-
-facing, in-app course instead of a markdown file.
+| Tests | pytest, Vitest |
+| Orchestration | Docker Compose |
 
 ## Project summary (resume-ready)
 

@@ -9,7 +9,7 @@ export default function Learn() {
 
     return (
         <div className="learn-layout">
-            <nav className="learn-rail" aria-label="Course modules">
+            <nav className="learn-rail" aria-label="Build log">
                 {MODULES.map((m) => (
                     <button
                         key={m.id}
