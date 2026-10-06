@@ -24,6 +24,7 @@ building automation (BAS), fire alarm, and low-voltage/security work in Ottawa�
 - [x] M0: Repo skeleton, Docker Compose, docs stubs
 - [x] M1: Modbus energy meter sim + gateway reading it (`docker compose up modbus-meter gateway`, then `curl localhost:8000/points`)
 - [x] M2: BACnet AHU-1 (read + write) — `docker compose up modbus-meter bacnet-devices gateway`, then `curl -X POST localhost:8000/ahu-1/setpoint -d '{"value": 22.0}'` and watch `ahu-1.sat` drift toward it in `GET /points`
+- [x] Console (early, minimal): a live points table + a setpoint-write form, ahead of the full M7 operator console — `docker compose up` now brings up all four implemented services; open `http://localhost:5173`
 
 ## Architecture
 
@@ -53,11 +54,19 @@ See [`docs/architecture.md`](docs/architecture.md) for the full breakdown. At a 
 
 ## Running it
 
+Fire panel and access control sims aren't built yet (M4/M5), so a bare `docker compose up`
+will fail trying to build them. Run the services that exist:
+
 ```
-docker compose up
+docker compose up --build modbus-meter bacnet-devices gateway console
 ```
 
-Console will be at `http://localhost:5173` once M7 lands (not yet implemented).
+- Console (live points + a setpoint-write form): `http://localhost:5173`
+- Gateway API docs: `http://localhost:8000/docs`
+
+The console here is an early, minimal monitor — a live table and one write control — not
+the full M7 operator console (floor plan, AHU graphic, trends, alarms, fire annunciator).
+It'll grow into that over the remaining milestones rather than being replaced.
 
 ## Docs
 
@@ -76,7 +85,7 @@ Console will be at `http://localhost:5173` once M7 lands (not yet implemented).
 | Device simulators | Python 3.12, BAC0/bacpypes3, pymodbus |
 | Fire alarm & access sims | Python (FastAPI/asyncio) |
 | Gateway | Python FastAPI, SQLite, asyncio |
-| Frontend | React + TypeScript + Vite, Recharts, SVG |
+| Frontend | React 19 + TypeScript 7 + Vite 8 (Recharts, SVG graphics land with the full M7 console) |
 | Orchestration | Docker Compose |
 | Tests | pytest, Vitest |
 

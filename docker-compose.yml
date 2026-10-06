@@ -40,6 +40,7 @@ services:
       - "8000:8000"
 
   # --- Console -------------------------------------------------------------
+  # Minimal live-points monitor for now; grows into the full M7 operator console.
   console:
     build: ./console
     networks:

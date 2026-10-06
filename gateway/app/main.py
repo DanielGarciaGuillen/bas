@@ -11,6 +11,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from . import bacnet_ahu, modbus_meter
@@ -33,6 +34,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="BuildingOps Lab Gateway", lifespan=lifespan)
+
+# Lab-only: the console (localhost:5173) is a different origin from the gateway
+# (localhost:8000), and there's no auth here to protect — wide open is fine.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")

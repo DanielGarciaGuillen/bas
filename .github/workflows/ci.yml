@@ -15,6 +15,7 @@ permissions:
 
 env:
   PYTHON_VERSION: "3.12"
+  NODE_VERSION: "24"
 
 jobs:
   lint:
@@ -44,10 +45,25 @@ jobs:
       - run: python -m pytest -q
         working-directory: gateway
 
+  console:
+    name: Console typecheck + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+      - run: npm ci
+        working-directory: console
+      - run: npm run build
+        working-directory: console
+
   docker-build:
     name: Docker build (implemented services)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - run: docker compose build modbus-meter bacnet-devices gateway
+      - run: docker compose build modbus-meter bacnet-devices gateway console
