@@ -1,6 +1,7 @@
 services:
   # --- Device simulators -----------------------------------------------
-  # BACnet/IP: AHU-1 (3 points). Implemented in M2; VAV-101..104 follow the same pattern.
+  # BACnet/IP: AHU-1 (13 points, a real PI sequence of operation as of M3).
+  # VAV-101..104 follow the same pattern.
   bacnet-devices:
     build: ./sims/bacnet_devices
     networks:

@@ -151,7 +151,73 @@ the repo).
 
 ## M3 — Thermal model + sequences of operation
 
-_TODO after milestone._
+- **Concept:** a "sequence of operation" is firmware logic, and it runs *on the
+  controller*, not on the supervisory layer. That's why `control.py`'s PI loops,
+  economizer, and schedule live in `sims/bacnet_devices/` (the simulated AHU controller)
+  rather than in the gateway — the gateway only ever reads measured values and writes
+  setpoints/commands, exactly like a real BAS front end talking to a real field panel.
+- **Split-range control:** one signed PI output (negative = cool, positive = heat) splits
+  into two valve commands so the system structurally can't call for heating and cooling
+  at once — a cheap, standard pattern (`split_range_valves`) worth knowing by name.
+- **The bug that mattered most this milestone — integral windup, misdiagnosed twice:**
+  first pass clamped the PI controller's integral term directly to the output range
+  (`±100`). With a small `ki` (0.01), that capped the integral's *contribution* at `ki *
+  100 = 1.0` — nowhere near enough to ever close a steady-state error, so the loop
+  stabilized exactly 4°C off setpoint and stayed there forever. The fix: clamp the
+  integral to `±(output_range / ki)`, the textbook anti-windup bound, so `ki * integral`
+  alone can reach the output limit but no further.
+- **The bug that mattered second most — a textbook limit cycle, found only by running the
+  loop, not by reading it:** even after fixing the integral, a cooling scenario still
+  wouldn't settle. The actual cause: the economizer's outside-air damper snapped instantly
+  between 20% and 90% every single tick, and that swung the mixed-air temperature so hard
+  each way that the SAT loop oscillated forever instead of converging — a real bang-bang
+  limit cycle, invisible to a per-function unit test and only visible by simulating
+  hundreds of ticks end to end. Fixed by giving every actuator (damper, valves, fan) a
+  bounded slew rate (`ramp_toward`) — which is also just... how real actuators behave;
+  they don't teleport. The fix was simultaneously "more correct physics" and "fixes the
+  bug," which is a good sign the original model was missing something real, not just
+  under-tuned.
+- **A third, subtler bug — the economizer helping when it shouldn't:** first version of
+  `economizer_oa_damper_pct` opened the OA damper whenever outside air was colder than
+  return air, full stop. That's wrong: during an actual *heating* call, flooding the AHU
+  with cold outside air fights the heating coil instead of helping anything. A real
+  economizer only engages when the loop is *actually calling for cooling* — fixed by
+  passing the loop's own cooling-demand signal into the economizer decision, not just
+  comparing OAT/RAT in isolation.
+- **Tuning for the medium, not just correctness:** the first stable gains took ~30-60
+  minutes of (real) time to settle — technically convergent, useless for a demo video.
+  Re-tuning for a few minutes of real-world settling time was its own deliberate step,
+  separate from "does it converge at all." A working control loop and a *demoable* one
+  aren't the same bar.
+- **Decoupling the demo clock from the physics:** the occupancy schedule and outside air
+  temperature run on an accelerated "sim day" (a full 24h cycle in minutes) so a demo
+  doesn't have to wait for real 8am/6pm. The control loops themselves (PI math, actuator
+  slew, thermal lag) deliberately do *not* get that acceleration — they run against the
+  real tick interval, so the already-tested, real-time-tuned behavior stays exactly what
+  was verified. Mixing "clock speed" and "physics speed" was tempting and would have been
+  wrong: it would have meant re-deriving every gain for whatever acceleration factor got
+  chosen.
+- **A deployment bug the unit tests couldn't catch:** `sims/bacnet_devices/control.py` was
+  a new file, and the Dockerfile only `COPY`'d `main.py` — the container built fine
+  (Docker doesn't know what the Python file imports) and crashed instantly on start with
+  `ModuleNotFoundError`. Unit tests ran on the host, against the real filesystem, so they
+  never saw it. Caught only by actually running `docker compose up` with the real
+  container, which is exactly why that step isn't optional before calling something done.
+- **A second deployment bug, same root lesson:** on a true cold start, the gateway's very
+  first BACnet `read_property` to AHU-1 raced the device still starting up — and hung
+  indefinitely instead of raising, because nothing in the request path enforced a timeout
+  short enough for a poll loop. Wrapped every read/write in `asyncio.wait_for(...)`. Two
+  bugs in one milestone that only a real cold `docker compose up` surfaced — a reminder
+  that "unit tests pass" and "the stack actually comes up from nothing" are different
+  claims.
+- **Interview question:** *"Why would a control loop that converges fine in testing
+  oscillate forever in the field?"*
+  **Short answer:** usually a discrete-time simulation or control loop updating faster
+  than the physical actuator it's commanding can actually move — a damper or valve that's
+  told to jump straight to a new position every cycle, with no slew-rate limit modeling
+  (or respecting) how long the real hardware takes to get there, can turn a stable-looking
+  control law into a bang-bang oscillator once it meets real (or realistically simulated)
+  hardware.
 
 ## M4 — Fire alarm panel + interlock
 

@@ -25,6 +25,7 @@ building automation (BAS), fire alarm, and low-voltage/security work in Ottawa�
 - [x] M1: Modbus energy meter sim + gateway reading it (`docker compose up modbus-meter gateway`, then `curl localhost:8000/points`)
 - [x] M2: BACnet AHU-1 (read + write) — `docker compose up modbus-meter bacnet-devices gateway`, then `curl -X POST localhost:8000/ahu-1/setpoint -d '{"value": 22.0}'` and watch `ahu-1.sat` drift toward it in `GET /points`
 - [x] Console (early, minimal): a live points table + a setpoint-write form + an in-app **Learn** tab (the course lives in the app now, not a separate doc), ahead of the full M7 operator console — `docker compose up` now brings up all four implemented services; open `http://localhost:5173`
+- [x] M3: AHU-1 sequence of operation — occupancy schedule, economizer, a PI loop driving the heating/cooling valves, a second PI loop driving fan speed off duct static pressure (`sims/bacnet_devices/control.py`, unit-tested). Write the SAT setpoint from the console and watch the whole chain respond within a couple of minutes
 
 ## Architecture
 
@@ -90,7 +91,7 @@ without Docker: `cd console && pnpm install && pnpm run dev`.
 | Frontend | React 19 + TypeScript 7 + Vite 8, pnpm (Recharts lands with the full M7 console) |
 | Orchestration | Docker Compose |
 | Lint/format | ruff (Python), oxlint + oxfmt (console) |
-| Tests | pytest (gateway), Vitest (console) |
+| Tests | pytest (gateway, AHU-1 control logic), Vitest (console) |
 
 ## What I learned
 

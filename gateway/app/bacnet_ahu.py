@@ -3,6 +3,10 @@
 Unlike the Modbus meter, nothing here needs a hand-maintained register map: every object
 carries its own type/name/units, so the gateway reads those directly off the device instead
 of hardcoding them. See docs/bacnet-points-list.md.
+
+One `ReadProperty` per point per poll, in sequence — twelve round trips every cycle. A
+real integration would use `ReadPropertyMultiple` to batch these into one request; noted
+here rather than optimized, since one AHU on localhost doesn't need it yet.
 """
 
 from __future__ import annotations
@@ -24,10 +28,41 @@ log = logging.getLogger("gateway.bacnet_ahu")
 GATEWAY_LOCAL_ADDRESS = os.environ.get("BACNET_GATEWAY_ADDRESS", "10.10.0.20/24:47808")
 AHU_ADDRESS = os.environ.get("BACNET_AHU_ADDRESS", "10.10.0.11:47808")
 POLL_INTERVAL_S = float(os.environ.get("BACNET_POLL_INTERVAL_S", "3"))
+# bacpypes3's own apduTimeout/retries didn't save us here in practice: if AHU-1 isn't up
+# yet when the gateway's first request goes out, the await can hang far longer than a
+# poll cycle should ever take — found by actually cold-starting the whole stack with
+# `docker compose up`, not by reading the request path. Fail fast instead.
+READ_TIMEOUT_S = 5.0
 
-AI_SAT = ObjectIdentifier(("analogInput", 1))
 AV_SAT_SETPOINT = ObjectIdentifier(("analogValue", 1))
-BI_FAN_STATUS = ObjectIdentifier(("binaryInput", 1))
+AV_STATIC_PRESSURE_SETPOINT = ObjectIdentifier(("analogValue", 2))
+
+# (point key, BACnet object, display name, units) — matches sims/bacnet_devices/main.py's
+# object list exactly. Order here is display order, not wire order.
+AHU_POINTS: list[tuple[str, ObjectIdentifier, str, str | None]] = [
+    ("occupancy_mode", ObjectIdentifier(("multiStateValue", 1)), "Occupancy Mode", None),
+    ("sat_setpoint", AV_SAT_SETPOINT, "SAT Setpoint", "degC"),
+    ("sat", ObjectIdentifier(("analogInput", 1)), "Supply Air Temp", "degC"),
+    ("oat", ObjectIdentifier(("analogInput", 2)), "Outside Air Temp", "degC"),
+    ("rat", ObjectIdentifier(("analogInput", 3)), "Return Air Temp", "degC"),
+    ("heating_valve", ObjectIdentifier(("analogOutput", 3)), "Heating Valve", "%"),
+    ("cooling_valve", ObjectIdentifier(("analogOutput", 2)), "Cooling Valve", "%"),
+    ("oa_damper", ObjectIdentifier(("analogOutput", 4)), "OA Damper", "%"),
+    ("static_pressure_setpoint", AV_STATIC_PRESSURE_SETPOINT, "Static Pressure Setpoint", "inWC"),
+    ("static_pressure", ObjectIdentifier(("analogInput", 4)), "Duct Static Pressure", "inWC"),
+    ("fan_speed", ObjectIdentifier(("analogOutput", 1)), "Supply Fan Speed", "%"),
+    ("fan_command", ObjectIdentifier(("binaryOutput", 1)), "Supply Fan Command", None),
+    ("fan_status", ObjectIdentifier(("binaryInput", 1)), "Supply Fan Status", None),
+]
+
+# Must match sims/bacnet_devices/main.py's OCCUPANCY_STATE_TEXT / MODE_TO_STATE_INDEX.
+OCCUPANCY_LABELS = {1: "Occupied", 2: "Unoccupied", 3: "Warm-up"}
+
+# A remote ReadProperty on a binary object comes back as a plain 0/1 int, not the nicer
+# BinaryPV enum a local object access gives you — found by actually looking at what the
+# console rendered, not by assuming the wire value matches the Python-side object API.
+BINARY_POINT_KEYS = {"fan_command", "fan_status"}
+BINARY_LABELS = {0: "inactive", 1: "active"}
 
 _app: NormalApplication | None = None
 
@@ -45,48 +80,53 @@ def _client_app() -> NormalApplication:
 
 
 async def write_sat_setpoint(value: float) -> None:
-    await _client_app().write_property(AHU_ADDRESS, AV_SAT_SETPOINT, "presentValue", value)
+    await asyncio.wait_for(
+        _client_app().write_property(AHU_ADDRESS, AV_SAT_SETPOINT, "presentValue", value),
+        timeout=READ_TIMEOUT_S,
+    )
+
+
+async def write_static_pressure_setpoint(value: float) -> None:
+    await asyncio.wait_for(
+        _client_app().write_property(
+            AHU_ADDRESS, AV_STATIC_PRESSURE_SETPOINT, "presentValue", value
+        ),
+        timeout=READ_TIMEOUT_S,
+    )
+
+
+def _format_value(key: str, raw) -> float | str:
+    if key == "occupancy_mode":
+        return OCCUPANCY_LABELS.get(int(raw), str(raw))
+    if key in BINARY_POINT_KEYS:
+        return BINARY_LABELS.get(int(raw), str(raw))
+    if isinstance(raw, (int, float)):
+        return round(float(raw), 2)
+    return str(raw)
 
 
 async def poll_ahu_forever() -> None:
     app = _client_app()
     while True:
         try:
-            sat = await app.read_property(AHU_ADDRESS, AI_SAT, "presentValue")
-            setpoint = await app.read_property(AHU_ADDRESS, AV_SAT_SETPOINT, "presentValue")
-            fan_status = await app.read_property(AHU_ADDRESS, BI_FAN_STATUS, "presentValue")
-
-            points["ahu-1.sat"] = {
-                "id": "ahu-1.sat",
-                "device": "ahu-1",
-                "name": "Supply Air Temp",
-                "value": round(float(sat), 2),
-                "units": "degC",
-                "status": "ok",
-            }
-            points["ahu-1.sat_setpoint"] = {
-                "id": "ahu-1.sat_setpoint",
-                "device": "ahu-1",
-                "name": "SAT Setpoint",
-                "value": round(float(setpoint), 2),
-                "units": "degC",
-                "status": "ok",
-            }
-            points["ahu-1.fan_status"] = {
-                "id": "ahu-1.fan_status",
-                "device": "ahu-1",
-                "name": "Supply Fan Status",
-                "value": str(fan_status),
-                "units": None,
-                "status": "ok",
-            }
+            for key, object_id, name, units in AHU_POINTS:
+                raw = await asyncio.wait_for(
+                    app.read_property(AHU_ADDRESS, object_id, "presentValue"),
+                    timeout=READ_TIMEOUT_S,
+                )
+                point_id = f"ahu-1.{key}"
+                points[point_id] = {
+                    "id": point_id,
+                    "device": "ahu-1",
+                    "name": name,
+                    "value": _format_value(key, raw),
+                    "units": units,
+                    "status": "ok",
+                }
         except Exception:
             log.exception("Failed to poll AHU-1 at %s", AHU_ADDRESS)
-            for point_id, name, units in (
-                ("ahu-1.sat", "Supply Air Temp", "degC"),
-                ("ahu-1.sat_setpoint", "SAT Setpoint", "degC"),
-                ("ahu-1.fan_status", "Supply Fan Status", None),
-            ):
+            for key, _object_id, name, units in AHU_POINTS:
+                point_id = f"ahu-1.{key}"
                 points[point_id] = {
                     "id": point_id,
                     "device": "ahu-1",

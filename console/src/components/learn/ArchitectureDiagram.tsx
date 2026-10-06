@@ -18,7 +18,7 @@ const BOXES: Box[] = [
         y: 14,
         w: 190,
         h: 52,
-        lines: ['BACnet/IP: AHU-1', '3 points, 1 writable']
+        lines: ['BACnet/IP: AHU-1', '13 points, real PI loops']
     },
     {
         id: 'modbus',
