@@ -24,7 +24,7 @@ building automation (BAS), fire alarm, and low-voltage/security work in Ottawa�
 - [x] M0: Repo skeleton, Docker Compose, docs stubs
 - [x] M1: Modbus energy meter sim + gateway reading it (`docker compose up modbus-meter gateway`, then `curl localhost:8000/points`)
 - [x] M2: BACnet AHU-1 (read + write) — `docker compose up modbus-meter bacnet-devices gateway`, then `curl -X POST localhost:8000/ahu-1/setpoint -d '{"value": 22.0}'` and watch `ahu-1.sat` drift toward it in `GET /points`
-- [x] Console (early, minimal): a live points table + a setpoint-write form, ahead of the full M7 operator console — `docker compose up` now brings up all four implemented services; open `http://localhost:5173`
+- [x] Console (early, minimal): a live points table + a setpoint-write form + an in-app **Learn** tab (the course lives in the app now, not a separate doc), ahead of the full M7 operator console — `docker compose up` now brings up all four implemented services; open `http://localhost:5173`
 
 ## Architecture
 
@@ -61,12 +61,14 @@ will fail trying to build them. Run the services that exist:
 docker compose up --build modbus-meter bacnet-devices gateway console
 ```
 
-- Console (live points + a setpoint-write form): `http://localhost:5173`
+- Console: `http://localhost:5173` — **Live** tab (points table + setpoint write) and a
+  **Learn** tab (the field course, one module per milestone, grows as the build does)
 - Gateway API docs: `http://localhost:8000/docs`
 
 The console here is an early, minimal monitor — a live table and one write control — not
 the full M7 operator console (floor plan, AHU graphic, trends, alarms, fire annunciator).
-It'll grow into that over the remaining milestones rather than being replaced.
+It'll grow into that over the remaining milestones rather than being replaced. Local dev
+without Docker: `cd console && pnpm install && pnpm run dev`.
 
 ## Docs
 
@@ -85,13 +87,16 @@ It'll grow into that over the remaining milestones rather than being replaced.
 | Device simulators | Python 3.12, BAC0/bacpypes3, pymodbus |
 | Fire alarm & access sims | Python (FastAPI/asyncio) |
 | Gateway | Python FastAPI, SQLite, asyncio |
-| Frontend | React 19 + TypeScript 7 + Vite 8 (Recharts, SVG graphics land with the full M7 console) |
+| Frontend | React 19 + TypeScript 7 + Vite 8, pnpm (Recharts lands with the full M7 console) |
 | Orchestration | Docker Compose |
-| Tests | pytest, Vitest |
+| Lint/format | ruff (Python), oxlint + oxfmt (console) |
+| Tests | pytest (gateway), Vitest (console) |
 
 ## What I learned
 
-See [`docs/learning-log.md`](docs/learning-log.md) — filled in milestone by milestone.
+See [`docs/learning-log.md`](docs/learning-log.md) for Daniel's own notes (filled in
+milestone by milestone) — the console's **Learn** tab covers the same ground as a visitor-
+facing, in-app course instead of a markdown file.
 
 ## Project summary (resume-ready)
 

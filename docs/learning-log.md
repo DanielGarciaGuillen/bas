@@ -123,6 +123,32 @@ which still needs M3-M6's concepts (zones, alarms, history) to mean anything.
   so protocol-speaking and presentation are separate concerns — the browser should only
   ever need HTTP/WebSocket to one normalized API.
 
+## Console hardening — adopting real project hygiene, and an in-app Learn tab
+
+Re-architected the console to match the conventions of a production codebase (a personal
+one, `ott-next`) rather than a quick prototype, and folded the field-course content
+directly into the app as a **Learn** tab (replacing a standalone course page kept outside
+the repo).
+
+- **Concept:** `oxlint`/`oxfmt` are Rust-based (via the Oxc project) drop-ins for
+  ESLint/Prettier — same job, startlingly faster, because they skip the JS AST entirely.
+  Worth knowing as "the ecosystem moved" rather than assuming ESLint is still the default.
+- **pnpm's `packageManager` field + Corepack:** pinning `packageManager: "pnpm@x.y.z"` in
+  `package.json` means `corepack enable` downloads exactly that version on first use —
+  nobody (including CI) can silently drift onto a different pnpm version.
+- **Verifying before guessing:** `pnpm/action-setup`'s input for pointing at a non-root
+  `package.json` is `package_json_file` (underscore), not the hyphenated form a GitHub
+  Actions convention would suggest. Checked the action's actual `action.yml` via `gh api`
+  rather than assuming the naming pattern — the same "check the source" habit that caught
+  pymodbus's and pnpm's version quirks earlier.
+- **Why fold the course into the app:** a separate course page is one more thing to keep in
+  sync by hand every milestone. A `MODULES` array of React components next to the code it
+  documents can't drift the same way a copy-pasted artifact can — and it ships with the
+  portfolio piece itself instead of living beside it.
+- **Testable extraction:** pulled `protocolFor`/`formatValue` out of the table component
+  into `lib/points.ts` purely so they'd have something to unit-test — the same "extract the
+  pure decode step" pattern used for the gateway's Modbus/BACnet polling.
+
 ## M3 — Thermal model + sequences of operation
 
 _TODO after milestone._
