@@ -1,7 +1,9 @@
 """BuildingOps Lab gateway.
 
 Polls field devices (Modbus meter, BACnet AHU-1, the fire panel sim, access control),
-normalizes them into one point shape, and exposes them over REST.
+normalizes them into one point shape, and exposes them over REST — plus, as of M6, an
+alarm engine, trend history, and work orders (supervisor.py, alarms.py, db.py,
+work_orders.py) that make it more than a polling pipe.
 """
 
 from __future__ import annotations
@@ -9,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from typing import Literal
 
 import httpx
@@ -16,19 +19,23 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import access_control, bacnet_ahu, fire_panel, modbus_meter
-from .state import points
+from . import access_control, bacnet_ahu, db, fire_panel, modbus_meter, supervisor
+from .alarms import AlarmUnackable
+from .state import alarm_engine, points, work_order_store
+from .work_orders import WorkOrderNotFound, seed_preventive_maintenance
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    seed_preventive_maintenance(work_order_store, datetime.now())
     tasks = [
         asyncio.create_task(modbus_meter.poll_meter_forever()),
         asyncio.create_task(bacnet_ahu.poll_ahu_forever()),
         asyncio.create_task(fire_panel.poll_fire_panel_forever()),
         asyncio.create_task(access_control.poll_access_control_forever()),
+        asyncio.create_task(supervisor.run_supervisor_forever()),
     ]
     try:
         yield
@@ -179,3 +186,90 @@ async def clear_door(door_id: int) -> dict:
 @app.get("/access-control/cardholders")
 async def list_cardholders() -> dict:
     return await _proxy("Access control", access_control.ACCESS_CONTROL_URL, "GET", "/state")
+
+
+# --- Alarms --------------------------------------------------------------------------
+
+
+@app.get("/alarms")
+async def list_alarms(active_only: bool = False) -> list:
+    return alarm_engine.active_alarms() if active_only else alarm_engine.all_alarms()
+
+
+@app.post("/alarms/{alarm_id}/ack")
+async def ack_alarm(alarm_id: int):
+    try:
+        return alarm_engine.ack(alarm_id, datetime.now())
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AlarmUnackable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+class WorkOrderFromAlarmBody(BaseModel):
+    asset: str
+    problem: str
+    priority: int = 3
+    notes: str = ""
+
+
+@app.post("/alarms/{alarm_id}/work-order")
+async def create_work_order_from_alarm(alarm_id: int, body: WorkOrderFromAlarmBody):
+    if alarm_engine.get(alarm_id) is None:
+        raise HTTPException(status_code=404, detail=f"no such alarm: {alarm_id}")
+    return work_order_store.create(
+        asset=body.asset,
+        problem=body.problem,
+        priority=body.priority,
+        now=datetime.now(),
+        notes=body.notes,
+        source_alarm_id=alarm_id,
+    )
+
+
+# --- Work orders -----------------------------------------------------------------------
+
+
+@app.get("/work-orders")
+async def list_work_orders() -> list:
+    return work_order_store.all()
+
+
+class WorkOrderCreateBody(BaseModel):
+    asset: str
+    problem: str
+    priority: int = 3
+    notes: str = ""
+
+
+@app.post("/work-orders")
+async def create_work_order(body: WorkOrderCreateBody):
+    return work_order_store.create(
+        asset=body.asset,
+        problem=body.problem,
+        priority=body.priority,
+        now=datetime.now(),
+        notes=body.notes,
+    )
+
+
+class WorkOrderStatusBody(BaseModel):
+    status: Literal["open", "in_progress", "done"]
+
+
+@app.patch("/work-orders/{work_order_id}")
+async def update_work_order(work_order_id: int, body: WorkOrderStatusBody):
+    try:
+        return work_order_store.set_status(work_order_id, body.status)
+    except WorkOrderNotFound as exc:
+        raise HTTPException(status_code=404, detail=f"no such work order: {exc}") from exc
+
+
+# --- Trend history ---------------------------------------------------------------------
+
+
+@app.get("/history/{point_id}")
+async def get_history(point_id: str, minutes: int = 60, limit: int = 2000) -> list[dict]:
+    end = datetime.now()
+    start = end - timedelta(minutes=minutes)
+    return await db.query_history(point_id, start, end, limit)

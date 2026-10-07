@@ -12,13 +12,14 @@
  │                       [Gateway (FastAPI) :8000]                               │
  │                         • polls all four, normalizes into one point shape     │
  │                         • fire alarm → AHU-1 fan/damper interlock             │
+ │                         • alarm engine · SQLite history · work orders         │
  │                         • REST API (+ write/demo endpoints)                   │
  │                                        │                                     │
  └────────────────────────────────────────┼─────────────────────────────────────┘
                                           ▼
                        [React + TypeScript Console :5173]
-                     Live points table · setpoint writes ·
-                 fire/access demo controls · in-app Notes tab
+                  Live points table · setpoint writes · alarms &
+               work orders panels · fire/access demo controls · Notes tab
 ```
 
 VAV-101..104 aren't built yet — see `bacnet-points-list.md` and the console's Notes tab.
@@ -31,8 +32,18 @@ VAV-101..104 aren't built yet — see `bacnet-points-list.md` and the console's 
 | `sims/modbus_meter` | Energy meter over Modbus TCP (one register: kW) | M1 |
 | `sims/fire_panel` | Fire alarm panel FSM over REST (`panel.py`) | M4 |
 | `sims/access_control` | Door/cardholder access-decision FSM over REST (`access.py`) | M5 |
-| `gateway` | Polls all of the above, normalizes into one point shape, drives the fire interlock, serves REST | M1–M5 |
-| `console` | React Live-points monitor + in-app Notes tab | early (grows into the full M7 console) |
+| `gateway` | Polls all of the above, normalizes into one point shape, drives the fire interlock, runs the alarm engine + trend history + work orders, serves REST | M1–M6 |
+| `console` | React Live-points monitor, alarms/work-orders panels, in-app Notes tab | early (grows into the full M7 console) |
+
+## Alarm engine, history, work orders (M6)
+
+The gateway's supervisor loop (`gateway/app/supervisor.py`) ticks every few seconds,
+evaluating the current point snapshot against a fixed rule set (`alarms.py`) and writing
+every numeric point to a SQLite trend table (`db.py`). Alarms carry a real lifecycle
+(`active_unacked → active_acked → cleared`) and can spawn a work order (`work_orders.py`)
+that tracks the problem through to resolution. See
+[`alarm-engine-notes.md`](alarm-engine-notes.md) for the rules, the lifecycle, and what was
+deliberately deferred (a WebSocket push channel, bundled with M6 in the original plan).
 
 ## Point model
 

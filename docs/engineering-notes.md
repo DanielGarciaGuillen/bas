@@ -249,9 +249,55 @@ repo).
   generalizing (one `_proxy()` helper, one `postJson()` helper on the console side) stops
   being premature abstraction and starts being the obvious move.
 
-## M6 — Alarm engine, history, work orders, WebSocket
+## M6 — Alarm engine, history, work orders
 
-_TODO after milestone._
+- **Concept:** up to M5 the gateway only ever reflected point state it polled — it never
+  decided anything. M6 adds a real logic layer on top: an `AlarmEngine` that evaluates the
+  same point snapshot every supervisor tick against a small fixed rule set (fire condition,
+  forced/held-open doors, fan command/status mismatch, sustained SAT deviation), a SQLite
+  trend store, and a `WorkOrderStore` an operator can create straight from an alarm. See
+  `docs/alarm-engine-notes.md` for the rules and the state machine in detail.
+- **Alarm lifecycle, not a boolean:** `active_unacked → active_acked → cleared`.
+  Acknowledging an alarm only records that a human has seen it — the underlying condition
+  (a door still forced, a zone still in alarm) is untouched. Clearing is the engine's own
+  re-evaluation deciding the condition is actually gone. Collapsing those two into one flag
+  would let an operator silence an alarm and have the system claim the problem was solved
+  when it wasn't.
+- **Each alarm key keeps exactly one active instance, but a full history:** re-raising the
+  same condition after it clears opens a brand new alarm `id` rather than resurrecting the
+  old row, which is what lets the alarm table double as an audit trail instead of only
+  "what's wrong right now."
+- **The SAT-deviation rule needed two conditions, not one:** a single noisy sample
+  shouldn't page anyone, and the AHU-1 PI loop is *expected* to overshoot briefly after a
+  setpoint step (M3). The rule tracks a per-point "deviation since" timestamp and only
+  raises once the measured value has stayed outside a 2°C deadband continuously for 30
+  seconds — resetting the timer the instant the point comes back inside the deadband.
+  Verified with explicit unit cases for "inside the deadband never alarms," "outside the
+  deadband but not long enough never alarms," and "recovering resets the clock," rather
+  than trusting one live demo run to prove the logic.
+- **An alarm that correctly never fired, live:** writing an aggressive setpoint step during
+  manual testing never triggered the SAT alarm. Not a bug — the PI loop converged back
+  inside the 2°C deadband before the 30-second delay elapsed, exactly what a well-tuned
+  loop recovering from a legitimate setpoint change should do. The 12-case unit suite is
+  what made it possible to tell "no alarm, correctly" apart from "broken alarm" instead of
+  guessing from a single anecdote.
+- **Pure-logic extraction, same pattern as every prior milestone:** `alarms.py` and
+  `work_orders.py` take a plain `dict`/`datetime` snapshot in and return plain dataclasses
+  out — no FastAPI, no sqlite, no I/O. That's what let both get a full unit suite (12 + 6
+  cases) before either was wired into `main.py` at all, and both suites passed on the
+  first run.
+- **History and the supervisor loop are a separate concern from alarms, even though they
+  share a tick:** `supervisor.py` runs one periodic loop that calls `alarm_engine.evaluate()`
+  and `db.record_samples()` back to back on the same snapshot — not because they're
+  logically coupled, but because polling the same `points` dict once per tick for two
+  unrelated jobs is simpler than running two independent timers against state that can
+  change underneath either one.
+- **SQLite over anything heavier, on purpose:** trend history here is "a few numeric
+  points, sampled every few seconds, queried by a demo UI" — not a production historian's
+  workload. The stdlib `sqlite3` module via `asyncio.to_thread` (so a disk write never
+  blocks the event loop) is the simplest thing that's actually correct for that scope; an
+  ORM or a dedicated time-series database would be solving a problem this project doesn't
+  have.
 
 ## M7 — Console shell, overview, AHU graphic
 

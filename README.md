@@ -14,11 +14,12 @@ exposed through a React console.
 
 ## Status
 
-M0–M5 done: Modbus meter, BACnet AHU-1 with a real PI-loop sequence of operation, a fire
-alarm panel whose alarm shuts the AHU down via a BACnet priority override, and access
-control with per-door/per-cardholder access decisions. M6 (alarm engine, history, work
-orders) is next. Design decisions and debugging notes live in the console's **Notes** tab
-and [`docs/engineering-notes.md`](docs/engineering-notes.md).
+M0–M6 done: Modbus meter, BACnet AHU-1 with a real PI-loop sequence of operation, a fire
+alarm panel whose alarm shuts the AHU down via a BACnet priority override, access control
+with per-door/per-cardholder access decisions, and an alarm engine with trend history and
+work orders. M7 (the full operator console) is next. Design decisions and debugging notes
+live in the console's **Notes** tab and
+[`docs/engineering-notes.md`](docs/engineering-notes.md).
 
 ## Running it
 
@@ -51,6 +52,7 @@ One Docker network stands in for what a real site splits across VLANs. Full brea
 - [`docs/bacnet-points-list.md`](docs/bacnet-points-list.md) — BACnet points list
 - [`docs/fire-alarm-notes.md`](docs/fire-alarm-notes.md) — panel states, interlock, disclaimer
 - [`docs/access-control-notes.md`](docs/access-control-notes.md) — doors, cardholders, access decisions
+- [`docs/alarm-engine-notes.md`](docs/alarm-engine-notes.md) — alarm rules, lifecycle, work orders
 - [`docs/engineering-notes.md`](docs/engineering-notes.md) — design decisions, debugging notes
 
 ## Tech stack

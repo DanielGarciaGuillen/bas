@@ -464,3 +464,35 @@ pre {
     color: var(--muted);
     font-size: 0.86rem;
 }
+
+/* --- alarms / work orders panels --- */
+.panel-section {
+    margin-top: 1.5rem;
+}
+.panel-section h2 {
+    font-size: 1rem;
+    margin: 0 0 0.6rem;
+}
+.panel-section table select {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.25rem 0.4rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+.panel-section button {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.25rem 0.6rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+.panel-section button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
