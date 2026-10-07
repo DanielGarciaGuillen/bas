@@ -79,3 +79,64 @@ export function holdOpenDoor(doorId: number) {
 export function clearDoor(doorId: number) {
     return postJson(`/access-control/doors/${doorId}/clear`);
 }
+
+export interface Alarm {
+    id: number;
+    key: string;
+    message: string;
+    priority: number;
+    state: 'active_unacked' | 'active_acked' | 'cleared';
+    created_at: string;
+    acked_at: string | null;
+    cleared_at: string | null;
+}
+
+export async function fetchAlarms(): Promise<Alarm[]> {
+    const res = await fetch(`${API_BASE_URL}/alarms`);
+    if (!res.ok) throw new Error(`GET /alarms failed: ${res.status}`);
+    return res.json();
+}
+
+export function ackAlarm(alarmId: number) {
+    return postJson(`/alarms/${alarmId}/ack`);
+}
+
+export function createWorkOrderFromAlarm(
+    alarmId: number,
+    body: { asset: string; problem: string; priority?: number }
+) {
+    return postJson(`/alarms/${alarmId}/work-order`, body);
+}
+
+export interface WorkOrder {
+    id: number;
+    asset: string;
+    problem: string;
+    priority: number;
+    status: 'open' | 'in_progress' | 'done';
+    notes: string;
+    created_at: string;
+    source_alarm_id: number | null;
+}
+
+export async function fetchWorkOrders(): Promise<WorkOrder[]> {
+    const res = await fetch(`${API_BASE_URL}/work-orders`);
+    if (!res.ok) throw new Error(`GET /work-orders failed: ${res.status}`);
+    return res.json();
+}
+
+async function patchJson(path: string, body: unknown): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.detail ?? `PATCH ${path} failed: ${res.status}`);
+    }
+}
+
+export function setWorkOrderStatus(workOrderId: number, status: 'open' | 'in_progress' | 'done') {
+    return patchJson(`/work-orders/${workOrderId}`, { status });
+}

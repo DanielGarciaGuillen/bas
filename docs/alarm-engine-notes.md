@@ -1,0 +1,73 @@
+# Alarm Engine Notes
+
+How the gateway turns raw point state into alarms, trend history, and work orders (M6).
+See `gateway/app/alarms.py`, `gateway/app/work_orders.py`, `gateway/app/db.py`, and
+`gateway/app/supervisor.py`.
+
+## Lifecycle
+
+```
+active_unacked ──ack──> active_acked ──clear──> cleared
+       └───────────────────clear────────────────^
+```
+
+- **`active_unacked`** — the engine raised this alarm and no operator has acknowledged it.
+- **`active_acked`** — an operator called `POST /alarms/{id}/ack`. The underlying condition
+  is unchanged; this only records that a human has seen it.
+- **`cleared`** — the engine re-evaluated the same rule and the condition is gone, from
+  either state. Ack is not a prerequisite for clear.
+
+Each alarm `key` (e.g. `fire-panel.condition`) has at most one *active* row at a time. If
+the condition re-raises after clearing, it opens a new row with a new `id` — cleared alarms
+are never reused, so the alarm table is also the audit trail.
+
+## Rules
+
+Evaluated against one point snapshot every supervisor tick (`SUPERVISOR_INTERVAL_S`,
+default 3s):
+
+| Key | Condition | Priority |
+|---|---|---|
+| `fire-panel.condition` | Fire panel condition is not `normal` | 1 |
+| `access-control.door.<id>` | A door is `forced` or `held_open` | 2 |
+| `ahu-1.fan-mismatch` | Fan command and fan status disagree | 2 |
+| `ahu-1.sat-deviation` | Measured SAT outside a 2°C deadband of setpoint, continuously, for 30s | 3 |
+
+Lower number = higher priority, matching the convention already used for BACnet priority
+arrays elsewhere in this project.
+
+The SAT rule is the only one with a time element: a single bad sample doesn't raise it,
+since AHU-1's PI loop (M3) is expected to overshoot briefly after a setpoint step. The
+engine tracks a per-point "deviation since" timestamp, raises only once that's been true
+continuously past the delay, and resets the timestamp the moment the point comes back
+inside the deadband — so a loop that's still converging never trips it.
+
+## Work orders
+
+A work order (`gateway/app/work_orders.py`) is a plain record — `asset`, `problem`,
+`priority`, `status` (`open → in_progress → done`), optional `notes`, and an optional
+`source_alarm_id` linking it back to the alarm that prompted it, if any. Two are seeded at
+startup (`seed_preventive_maintenance`) to make the Work Orders panel non-empty on first
+load: a 90-day AHU-1 filter change and the fire panel's annual CAN/ULC-S536 inspection —
+both preventive, not alarm-driven, which is why `source_alarm_id` is `null` on both.
+
+Creating one from an alarm (`POST /alarms/{id}/work-order`) carries the alarm's `key` and
+`message` forward as `asset`/`problem`, so the link from "why does this work order exist"
+back to the alarm is never lost, even after the alarm itself clears.
+
+## History
+
+`gateway/app/db.py` writes every numeric point to a SQLite table (`point_history`) once
+per supervisor tick, via `asyncio.to_thread` so the write never blocks the poll loop.
+`GET /history/{point_id}?minutes=60&limit=2000` reads it back. This is scoped for a demo —
+a few numeric points sampled every few seconds — not a production historian's retention or
+compression needs.
+
+## What M6 does not do (and why)
+
+PLAN.md bundles a WebSocket push channel into M6 alongside the alarm engine, history, and
+work orders. That's deferred: the console already polls `/points`, `/alarms`, and
+`/work-orders` every 2.5s, which is fast enough that a push channel wouldn't be visibly
+different in a demo, and every other milestone's REST-polling pattern already covers the
+same ground. If/when it's picked up, it's additive — a `/ws` endpoint broadcasting the same
+normalized shapes the REST endpoints already return — not a rework of this engine.

@@ -31,12 +31,13 @@ export const MODULES: Module[] = [
                 <div className="concept-grid">
                     <ConceptCard title="Live now">
                         Modbus meter, BACnet AHU-1 with a real sequence of operation, a fire panel
-                        whose alarm can shut the AHU down, and access control with per-door,
-                        per-cardholder decisions — try the demo buttons below.
+                        whose alarm can shut the AHU down, access control with per-door,
+                        per-cardholder decisions, and an alarm engine with trend history and work
+                        orders — try the demo buttons below.
                     </ConceptCard>
                     <ConceptCard title="Up next">
-                        The alarm engine — forced/held-open doors and fire conditions become real
-                        alarms with a lifecycle, history, and work orders.
+                        The full operator console — a floor plan, an AHU graphic, and a dedicated
+                        alarms/trends/network view grown from this same page.
                     </ConceptCard>
                     <ConceptCard title="Why one network">
                         A real site segments IT / BAS / security / fire onto separate VLANs (see{' '}
@@ -483,30 +484,104 @@ export const MODULES: Module[] = [
         )
     },
     {
+        id: 'm6',
+        navLabel: 'M6 · Alarms & work orders',
+        status: 'done',
+        heading: 'M6 · Alarm engine, history, work orders',
+        tag: 'the gateway stops being a pipe and starts being operational',
+        body: (
+            <>
+                <p>
+                    Up to M5 the gateway only ever reflected what the field systems reported. M6
+                    gives it its own logic layer: a rules engine that turns raw point state into
+                    alarms with a real lifecycle, a SQLite trend store, and a CMMS-lite work order
+                    queue an operator can create straight from an alarm.
+                </p>
+                <div className="concept-grid">
+                    <ConceptCard title="Four rules, one engine">
+                        Fire condition ≠ normal (P1), a door forced or held open (P2), a fan
+                        command/status mismatch (P2), and a sustained SAT deviation beyond a
+                        deadband (P3) — all evaluated against the same point snapshot every
+                        supervisor tick.
+                    </ConceptCard>
+                    <ConceptCard title="A real lifecycle, not a boolean">
+                        <code>active_unacked → active_acked → cleared</code>. An operator
+                        acknowledging an alarm doesn't make the underlying condition go away — it
+                        just records that a human has seen it, same as a real annunciator panel.
+                    </ConceptCard>
+                    <ConceptCard title="Work orders as the alarm's exhaust">
+                        An alarm is a symptom; a work order is the action taken about it. Creating
+                        one from an alarm carries the asset and problem text forward so the link
+                        back to "why does this work order exist" is never lost.
+                    </ConceptCard>
+                </div>
+
+                <FieldNote title="the SAT-deviation rule needs two conditions, not one">
+                    <p>
+                        A single bad sample shouldn't page anyone — thermal systems have lag, and
+                        the AHU-1 PI loop (M3) is expected to overshoot briefly during a setpoint
+                        step. The rule only raises once the measured SAT has been outside a 2°C
+                        deadband continuously for 30 seconds, tracked per-point with a "deviation
+                        since" timestamp that resets the instant the point comes back inside the
+                        deadband — so a loop that's merely still converging never fires a false
+                        alarm.
+                    </p>
+                </FieldNote>
+
+                <FieldNote title="an alarm that correctly never fired">
+                    <p>
+                        Live-testing the SAT rule by writing an aggressive setpoint step, the alarm
+                        never raised. Not a bug: the M3 PI loop converged back inside the 2°C
+                        deadband before the 30-second delay elapsed, which is exactly what a
+                        well-tuned loop recovering from a legitimate setpoint change should do.
+                        Trusting the 12-case unit suite (deadband-only, delay-only, timer-reset-on-
+                        recovery, etc.) over a single live anecdote is what made it possible to tell
+                        "no alarm" apart from "broken alarm" with confidence.
+                    </p>
+                </FieldNote>
+
+                <FieldNote title="clearing an alarm doesn't delete it">
+                    <p>
+                        Each alarm key (e.g. <code>fire-panel.condition</code>) can only have one
+                        <em> active</em> instance at a time, but a cleared alarm stays in history as
+                        its own row — if the same condition re-raises later, it opens as a brand new
+                        alarm <code>id</code> rather than resurrecting the old one. That's what lets
+                        the alarm list double as an audit trail instead of just "current state."
+                    </p>
+                </FieldNote>
+
+                <FlashCard
+                    q="Why does acknowledging an alarm not clear it?"
+                    a="Ack and clear answer two different questions. Ack means a human has seen the alarm — it stops it from paging again, but the underlying condition (a zone still in alarm, a door still forced) hasn't changed. Clear means the engine re-evaluated the point and the condition is genuinely gone. Collapsing them would let someone silence an alarm and have the UI claim the problem is resolved when it isn't."
+                />
+            </>
+        )
+    },
+    {
         id: 'later',
-        navLabel: 'M6 – M10 · Rest of the build',
+        navLabel: 'M7 – M10 · Rest of the build',
         status: 'next',
-        heading: 'M6 – M10 · Everything after that',
+        heading: 'M7 – M10 · Everything after that',
         tag: 'one line each, so the shape of the build stays visible',
         body: (
             <div className="teaser-list">
                 <div className="teaser">
-                    <span className="t-id">M6</span>
-                    <div>
-                        <h3>Alarm engine, history, work orders</h3>
-                        <p>
-                            Alarm lifecycle, trend history, and CMMS-lite work orders — the gateway
-                            becomes operational, not just a pipe.
-                        </p>
-                    </div>
-                </div>
-                <div className="teaser">
-                    <span className="t-id">M7+</span>
+                    <span className="t-id">M7</span>
                     <div>
                         <h3>The full operator console</h3>
                         <p>
                             Floor plan, AHU graphic, alarms, trends, fire annunciator, and the
                             network page — grown from this same page.
+                        </p>
+                    </div>
+                </div>
+                <div className="teaser">
+                    <span className="t-id">M8+</span>
+                    <div>
+                        <h3>Console depth, network page, final write-up</h3>
+                        <p>
+                            Alarms console, access log, trends, network design doc, demo video, and
+                            the resume-ready project summary.
                         </p>
                     </div>
                 </div>
