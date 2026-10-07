@@ -161,7 +161,8 @@ tbody tr:last-child td {
     font-size: 0.82rem;
 }
 
-.setpoint-form input {
+.setpoint-form input,
+.setpoint-form select {
     width: 6rem;
     background: var(--bg);
     color: var(--text);
@@ -169,6 +170,11 @@ tbody tr:last-child td {
     border-radius: 6px;
     padding: 0.35rem 0.5rem;
     font-family: inherit;
+}
+
+.setpoint-form select {
+    width: auto;
+    max-width: 16rem;
 }
 
 .setpoint-form button {

@@ -217,9 +217,37 @@ repo).
   AHU's sequence about the fire panel — exactly the boundary the interlock's own design
   (override from outside, via the priority array) was built to avoid crossing. Documented
   in `docs/sequences-of-operation.md` §7 instead of "fixed" by blurring that line.
-## M5 — Access control sim
 
-_TODO after milestone._
+## M5 — Access control
+
+- **Concept:** access control is a third instance of the same boundary fire alarm already
+  established — its own system, REST not a field protocol, polled by the gateway the same
+  shape as everything else. By M5 this wasn't a new decision, just applying one already
+  made twice.
+- **No simulated clock here, on purpose:** AHU-1 runs an accelerated "sim day" so its
+  schedule-driven behavior is demoable without waiting for real 8am/6pm. Access control
+  doesn't — "business hours" is checked against the real wall-clock time. The difference:
+  AHU-1 runs an autonomous simulation loop that needs a fast clock to be watchable; access
+  control is purely event-driven (a badge attempt either happens or it doesn't), so there's
+  no loop to accelerate and no reason to fake the clock it checks against.
+- **The exact same shared-mutable-default bug, caught before it had the chance to bite:**
+  `AccessControlSystem`'s `__post_init__` builds fresh `Door`/`Cardholder` instances rather
+  than reusing `DEFAULT_DOORS`/`DEFAULT_CARDHOLDERS` directly — written that way from the
+  start this time, because M4's `sims/fire_panel/panel.py` had already paid for the lesson.
+  The test suite passed on the first run as a result, rather than passing in isolation and
+  failing together the way the fire panel's did.
+- **Choosing cardholders to cover every outcome, not just a happy path:** six cardholders
+  were picked specifically to hit all five event results (`granted`, `denied_level`,
+  `denied_schedule`, plus `forced`/`held_open` from the door side) — a facilities manager
+  with blanket access, a 24/7 security guard with mid-tier access, a night cleaner capped
+  at the front door, and day-shift staff who lose access the moment the clock passes 6pm.
+  Designing the fixture data to exercise the state space is itself a design decision, not
+  an afterthought.
+- **Extracting the second real instance of a pattern, not the first:** the fire panel's
+  demo-proxy endpoints in `gateway/app/main.py` were one-off functions; adding access
+  control's gave a second, near-identical set, which is exactly the point where
+  generalizing (one `_proxy()` helper, one `postJson()` helper on the console side) stops
+  being premature abstraction and starts being the obvious move.
 
 ## M6 — Alarm engine, history, work orders, WebSocket
 

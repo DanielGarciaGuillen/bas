@@ -3,27 +3,25 @@
 ## Overview
 
 ```
- ┌───────────────────────── Docker network "bas_net" ─────────────────────────┐
- │                                                                           │
- │  [AHU-1 BACnet device]     [Meter Modbus]      [Fire Alarm Panel sim]    │
- │          │                       │                      │                 │
- │          └── BACnet/IP :47808 ───┼── Modbus TCP :502 ───┘ REST :8001      │
- │                                  ▼                      ▼                 │
- │                            [Gateway (FastAPI) :8000]                      │
- │                              • polls all three, on their own schedules    │
- │                              • normalizes into one point shape            │
- │                              • fire alarm → AHU-1 fan/damper interlock     │
- │                              • REST API (+ write endpoints)               │
- │                                        │                                  │
- └────────────────────────────────────────┼──────────────────────────────────┘
+ ┌─────────────────────────── Docker network "bas_net" ───────────────────────────┐
+ │                                                                                │
+ │  [AHU-1 BACnet]   [Meter Modbus]   [Fire Panel REST]   [Access Control REST]  │
+ │        │                │                 │                     │             │
+ │        └── :47808 ──────┼── :502 ─────────┼── :8001 ────────────┼── :8002     │
+ │                          ▼                 ▼                     ▼            │
+ │                       [Gateway (FastAPI) :8000]                               │
+ │                         • polls all four, normalizes into one point shape     │
+ │                         • fire alarm → AHU-1 fan/damper interlock             │
+ │                         • REST API (+ write/demo endpoints)                   │
+ │                                        │                                     │
+ └────────────────────────────────────────┼─────────────────────────────────────┘
                                           ▼
                        [React + TypeScript Console :5173]
                      Live points table · setpoint writes ·
-                     fire panel demo controls · in-app Notes tab
+                 fire/access demo controls · in-app Notes tab
 ```
 
-VAV-101..104 and the access-control sim (M5) aren't built yet — see `bacnet-points-list.md`
-and the console's Notes tab for what's planned.
+VAV-101..104 aren't built yet — see `bacnet-points-list.md` and the console's Notes tab.
 
 ## Components
 
@@ -32,8 +30,8 @@ and the console's Notes tab for what's planned.
 | `sims/bacnet_devices` | AHU-1: BACnet/IP device with a real sequence of operation (`control.py`) | M2/M3 |
 | `sims/modbus_meter` | Energy meter over Modbus TCP (one register: kW) | M1 |
 | `sims/fire_panel` | Fire alarm panel FSM over REST (`panel.py`) | M4 |
-| `sims/access_control` | Door/reader/cardholder sim over REST | not started (M5) |
-| `gateway` | Polls all of the above, normalizes into one point shape, drives the fire interlock, serves REST | M1–M4 |
+| `sims/access_control` | Door/cardholder access-decision FSM over REST (`access.py`) | M5 |
+| `gateway` | Polls all of the above, normalizes into one point shape, drives the fire interlock, serves REST | M1–M5 |
 | `console` | React Live-points monitor + in-app Notes tab | early (grows into the full M7 console) |
 
 ## Point model
@@ -45,10 +43,10 @@ Every protocol normalizes into the same shape before it reaches the API or the c
 ```
 
 `status` is `"ok"` or `"fault"` (a poll that failed keeps the last known shape with
-`value: null`). `device` groups points by their source (`ahu-1`, `meter-1`, `fire-panel`)
-and is what the console's Live tab uses to label each row's protocol. See
-`gateway/app/state.py` and each poller module (`modbus_meter.py`, `bacnet_ahu.py`,
-`fire_panel.py`) for the concrete shape.
+`value: null`). `device` groups points by their source (`ahu-1`, `meter-1`, `fire-panel`,
+`access-control`) and is what the console's Live tab uses to label each row's protocol.
+See `gateway/app/state.py` and each poller module (`modbus_meter.py`, `bacnet_ahu.py`,
+`fire_panel.py`, `access_control.py`) for the concrete shape.
 
 See [`bacnet-points-list.md`](bacnet-points-list.md) and
 [`modbus-register-map.md`](modbus-register-map.md) for the concrete point/register

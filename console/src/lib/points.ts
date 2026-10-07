@@ -1,10 +1,11 @@
 import type { Point } from './api';
 
-// Device id prefix -> which protocol module (in the Learn tab) explains this point.
+// Device id prefix -> which protocol module (in the Notes tab) explains this point.
 const PROTOCOL_BY_DEVICE: Record<string, string> = {
     'meter-1': 'Modbus TCP',
     'ahu-1': 'BACnet/IP',
-    'fire-panel': 'REST'
+    'fire-panel': 'REST',
+    'access-control': 'REST'
 };
 
 export function protocolFor(device: string): string {

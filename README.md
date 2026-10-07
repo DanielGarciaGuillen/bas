@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/DanielGarciaGuillen/bas/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielGarciaGuillen/bas/actions/workflows/ci.yml)
 
-A simulated small office building — HVAC, an energy meter, a fire alarm panel, and (soon)
-access control — speaking real protocols (BACnet/IP, Modbus TCP), normalized by a gateway,
-and exposed through a React console.
+A simulated small office building — HVAC, an energy meter, a fire alarm panel, and access
+control — speaking real protocols (BACnet/IP, Modbus TCP), normalized by a gateway, and
+exposed through a React console.
 
 **Everything here is simulated. No real equipment, no internet exposure.**
 
@@ -14,21 +14,20 @@ and exposed through a React console.
 
 ## Status
 
-M0–M4 done: Modbus meter, BACnet AHU-1 with a real PI-loop sequence of operation, and a
-fire alarm panel whose alarm shuts the AHU down via a BACnet priority override. M5 (access
-control) is next. Design decisions and debugging notes live in the console's **Notes** tab
+M0–M5 done: Modbus meter, BACnet AHU-1 with a real PI-loop sequence of operation, a fire
+alarm panel whose alarm shuts the AHU down via a BACnet priority override, and access
+control with per-door/per-cardholder access decisions. M6 (alarm engine, history, work
+orders) is next. Design decisions and debugging notes live in the console's **Notes** tab
 and [`docs/engineering-notes.md`](docs/engineering-notes.md).
 
 ## Running it
 
-Access control (M5) isn't built yet, so run the services that exist:
-
 ```
-docker compose up --build modbus-meter bacnet-devices fire-panel gateway console
+docker compose up --build modbus-meter bacnet-devices fire-panel access-control gateway console
 ```
 
-- Console: `http://localhost:5173` — live points, setpoint writes, fire panel demo
-  controls, and the Notes tab
+- Console: `http://localhost:5173` — live points, setpoint writes, fire panel + access
+  control demo controls, and the Notes tab
 - Gateway API docs: `http://localhost:8000/docs`
 
 Local dev without Docker: `cd console && pnpm install && pnpm run dev`.
@@ -36,7 +35,8 @@ Local dev without Docker: `cd console && pnpm install && pnpm run dev`.
 ## Architecture
 
 ```
- [AHU-1 BACnet] [Meter Modbus] [Fire Panel REST] ──► [Gateway :8000] ──► [Console :5173]
+ [AHU-1 BACnet] [Meter Modbus] [Fire Panel REST] [Access Control REST]
+                        └──────────► [Gateway :8000] ──► [Console :5173]
 ```
 
 One Docker network stands in for what a real site splits across VLANs. Full breakdown:
@@ -50,6 +50,7 @@ One Docker network stands in for what a real site splits across VLANs. Full brea
 - [`docs/modbus-register-map.md`](docs/modbus-register-map.md) — energy meter register map
 - [`docs/bacnet-points-list.md`](docs/bacnet-points-list.md) — BACnet points list
 - [`docs/fire-alarm-notes.md`](docs/fire-alarm-notes.md) — panel states, interlock, disclaimer
+- [`docs/access-control-notes.md`](docs/access-control-notes.md) — doors, cardholders, access decisions
 - [`docs/engineering-notes.md`](docs/engineering-notes.md) — design decisions, debugging notes
 
 ## Tech stack

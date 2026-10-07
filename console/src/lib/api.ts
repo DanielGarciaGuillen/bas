@@ -26,26 +26,56 @@ export async function writeAhu1Setpoint(value: number): Promise<void> {
     if (!res.ok) throw new Error(`POST /ahu-1/setpoint failed: ${res.status}`);
 }
 
-async function postFirePanel(path: string, body?: unknown): Promise<void> {
-    const res = await fetch(`${API_BASE_URL}/fire-panel${path}`, {
+async function postJson(path: string, body?: unknown): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
         method: 'POST',
         headers: body ? { 'Content-Type': 'application/json' } : undefined,
         body: body ? JSON.stringify(body) : undefined
     });
     if (!res.ok) {
         const detail = await res.json().catch(() => ({}));
-        throw new Error(detail.detail ?? `POST /fire-panel${path} failed: ${res.status}`);
+        throw new Error(detail.detail ?? `POST ${path} failed: ${res.status}`);
     }
 }
 
 export function triggerFireZone(zoneId: number, condition: 'alarm' | 'trouble' | 'supervisory') {
-    return postFirePanel(`/zones/${zoneId}/trigger`, { condition });
+    return postJson(`/fire-panel/zones/${zoneId}/trigger`, { condition });
 }
 
 export function clearFireZone(zoneId: number) {
-    return postFirePanel(`/zones/${zoneId}/clear`);
+    return postJson(`/fire-panel/zones/${zoneId}/clear`);
 }
 
 export function resetFirePanel() {
-    return postFirePanel('/reset');
+    return postJson('/fire-panel/reset');
+}
+
+export interface Cardholder {
+    id: number;
+    name: string;
+    access_level: number;
+    schedule: 'always' | 'business_hours';
+}
+
+export async function fetchCardholders(): Promise<Cardholder[]> {
+    const res = await fetch(`${API_BASE_URL}/access-control/cardholders`);
+    if (!res.ok) throw new Error(`GET /access-control/cardholders failed: ${res.status}`);
+    const data = await res.json();
+    return data.cardholders;
+}
+
+export function badgeDoor(doorId: number, cardholderId: number) {
+    return postJson(`/access-control/doors/${doorId}/badge`, { cardholder_id: cardholderId });
+}
+
+export function forceDoor(doorId: number) {
+    return postJson(`/access-control/doors/${doorId}/force`);
+}
+
+export function holdOpenDoor(doorId: number) {
+    return postJson(`/access-control/doors/${doorId}/hold-open`);
+}
+
+export function clearDoor(doorId: number) {
+    return postJson(`/access-control/doors/${doorId}/clear`);
 }
