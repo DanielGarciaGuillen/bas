@@ -338,7 +338,51 @@ repo).
 
 ## M8 — Alarms console, fire annunciator, access log, trends, work orders
 
-_TODO after milestone._
+- **Concept:** M7 gave the console a shell; M8 gives each system its own dedicated view
+  instead of sharing one flat Operations page — a sortable alarms table, a real fire panel
+  annunciator, an access control event log, and a trend chart. Work orders stay bundled
+  with Alarms (a documented simplification, not a missing page — see below).
+- **A second event log, built the same way as the first:** M6 never gave the fire panel an
+  event history the way access control's `access.py` always had one. Adding
+  `Panel.events: list[PanelEvent]` and appending from `trigger`/`clear_field`/
+  `acknowledge`/`silence`/`reset` is the exact same pattern as `AccessControlSystem.events` —
+  recognizing "this is the second instance of a pattern" (same lesson M5's notes already
+  drew about the demo-proxy endpoints) meant copying a shape already proven correct rather
+  than inventing a new one.
+- **Making the pure functions testable meant threading `now` through, not reading the
+  clock internally:** `trigger()`/`acknowledge()`/`silence()`/`reset()` used to have no time
+  parameter at all — nothing needed one before events existed. Adding an event log forced
+  the same choice `access.py` made in M5 (`badge(..., now: datetime)`): pass the clock in
+  explicitly rather than call `datetime.now()` inside pure logic, so tests can assert exact
+  timestamps and event ordering without mocking time.
+- **A real bug caught by Playwright, not by any unit test:** the gateway's
+  `GET /history/{point_id}` returns each sample as `{"value": ..., "timestamp": ...}` (see
+  `db.py`), but the console's `HistorySample` type and `LineChart.tsx` were written against
+  a guessed field name, `recorded_at`. Every Python test and every console unit test passed
+  — none of them exercise the actual JSON shape crossing the wire — and the chart rendered
+  as a flat `NaN` path (SVG attribute errors in the browser console, `MNaN,200 LNaN,200…`).
+  Only opening the Trends tab in a real browser and reading the console surfaced it. Fixed
+  by renaming the field to match the gateway's actual response, confirmed by re-reading
+  `gateway/app/db.py` directly rather than re-guessing. A reminder that typing a fetch
+  response doesn't verify it — only exercising the real endpoint does.
+- **Acknowledged/silenced exposed as a dedicated endpoint, not threaded through points:**
+  the point model (`{id, device, value, units, status}`) represents sensor/measured state;
+  "has an operator acknowledged this panel" is panel UI state, not a point. Rather than
+  force two booleans into that shape, `GET /fire-panel/panel` proxies the sim's full
+  `/panel` response directly — a narrow, deliberate exception to "everything is a point,"
+  made explicit in the endpoint's own comment rather than left implicit.
+- **The floor-plan trend chart is hand-rolled SVG, not a charting library:** PLAN.md
+  suggests Recharts. A single-series line chart — one path, a filled area, min/max labels,
+  an emphasized last point — is a few dozen lines of SVG with no new dependency, no new
+  bundle weight, and no library API to learn before trusting it. Reaching for a charting
+  library would make sense once there's a real need for multi-series overlays, zoom, or
+  legends; nothing here needs that yet.
+- **Work orders stay inside the Alarms tab, not a separate page:** PLAN.md lists Work
+  Orders as its own console page with "list + detail." The list view already exists
+  (`WorkOrdersPanel`) and a work order's only real action (change status) is one dropdown —
+  there's no detail worth a dedicated page yet, and work orders are created *from* alarms
+  often enough that keeping them on the same tab keeps that cause-and-effect visible
+  without a tab switch.
 
 ## M9 — Network page + network design doc
 

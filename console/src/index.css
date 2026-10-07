@@ -605,3 +605,108 @@ pre {
     font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
+
+/* --- fire panel annunciator --- */
+.annunciator-zones {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+    margin: 1rem 0 1.25rem;
+}
+.zone-led {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.7rem 0.9rem;
+}
+.led-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+}
+.led-pulse {
+    animation: led-pulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .led-pulse {
+        animation: none;
+    }
+}
+@keyframes led-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.35;
+    }
+}
+.zone-led-name {
+    font-size: 0.85rem;
+}
+.zone-led-state {
+    font-size: 0.72rem;
+    font-family: ui-monospace, monospace;
+    letter-spacing: 0.04em;
+}
+
+/* --- sortable table header --- */
+.th-sort {
+    all: unset;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+}
+.th-sort:hover {
+    color: var(--text);
+}
+
+/* --- trends --- */
+.trend-chart-wrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+.trend-chart {
+    width: 100%;
+    height: auto;
+}
+.trend-empty {
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 2rem 0;
+    text-align: center;
+}
+.trend-axis {
+    stroke: var(--border);
+    stroke-width: 1;
+}
+.trend-label {
+    fill: var(--muted);
+    font-size: 11px;
+}
+.trend-area {
+    fill: var(--accent);
+    fill-opacity: 0.12;
+    stroke: none;
+}
+.trend-line {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+}
+.trend-dot {
+    fill: var(--accent);
+}
+.trend-value {
+    fill: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}

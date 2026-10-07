@@ -32,6 +32,11 @@ is never hidden behind a lesser condition. See `sims/fire_panel/panel.py`'s
   blocking zone(s)) — matching real practice: you cannot reset a panel while a detector is
   still physically in alarm.
 
+Every trigger/clear/acknowledge/silence/reset appends a timestamped entry to the panel's
+own event log (M8, `panel.py`'s `PanelEvent`), the same pattern `sims/access_control`
+already used for badge/force/hold-open events. The console's Fire Panel tab shows the last
+10 via `GET /fire-panel/events`.
+
 ## Simulated zones / devices
 
 1. Smoke detector — Lobby
@@ -61,10 +66,10 @@ the gateway **relinquishes** priority 1 (`release_fire_interlock()`) and AHU-1's
 schedule immediately regains control — exactly the sequence `docs/sequences-of-operation.md`
 §6 and §7 describe.
 
-The console's Live tab shows this as `ahu-1.fire_interlock` (`active`/`inactive`) — a
-synthetic point the gateway creates, not something read off a real BACnet object — so the
-interlock's state is visible without needing to cross-reference the fan/damper points by
-hand.
+The console's Fire Panel tab shows this directly (`AHU-1 Interlock`), and the Points tab
+exposes the same thing as `ahu-1.fire_interlock` (`active`/`inactive`) — a synthetic point
+the gateway creates, not something read off a real BACnet object — so the interlock's state
+is visible without needing to cross-reference the fan/damper points by hand.
 
 > Real world: see the disclaimer at the top of this file. A real fan-shutdown interlock
 > is part of the fire alarm system's own engineered, often hardwired interlock to the

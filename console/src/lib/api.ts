@@ -50,6 +50,48 @@ export function resetFirePanel() {
     return postJson('/fire-panel/reset');
 }
 
+export function acknowledgeFirePanel() {
+    return postJson('/fire-panel/acknowledge');
+}
+
+export function silenceFirePanel() {
+    return postJson('/fire-panel/silence');
+}
+
+export interface FirePanelZone {
+    id: number;
+    name: string;
+    condition: 'normal' | 'alarm' | 'trouble' | 'supervisory';
+    field_cleared: boolean;
+}
+
+export interface FirePanelState {
+    condition: 'normal' | 'alarm' | 'trouble' | 'supervisory';
+    any_alarm: boolean;
+    acknowledged: boolean;
+    silenced: boolean;
+    zones: FirePanelZone[];
+}
+
+export async function fetchFirePanel(): Promise<FirePanelState> {
+    const res = await fetch(`${API_BASE_URL}/fire-panel/panel`);
+    if (!res.ok) throw new Error(`GET /fire-panel/panel failed: ${res.status}`);
+    return res.json();
+}
+
+export interface FirePanelEvent {
+    kind: 'trigger' | 'clear' | 'acknowledge' | 'silence' | 'reset';
+    zone_id: number | null;
+    detail: string;
+    timestamp: string;
+}
+
+export async function fetchFirePanelEvents(limit = 20): Promise<FirePanelEvent[]> {
+    const res = await fetch(`${API_BASE_URL}/fire-panel/events?limit=${limit}`);
+    if (!res.ok) throw new Error(`GET /fire-panel/events failed: ${res.status}`);
+    return res.json();
+}
+
 export interface Cardholder {
     id: number;
     name: string;
@@ -57,11 +99,28 @@ export interface Cardholder {
     schedule: 'always' | 'business_hours';
 }
 
-export async function fetchCardholders(): Promise<Cardholder[]> {
+export interface Door {
+    id: number;
+    name: string;
+    required_level: number;
+    state: 'normal' | 'forced' | 'held_open';
+}
+
+export interface AccessControlState {
+    any_alarm: boolean;
+    doors: Door[];
+    cardholders: Cardholder[];
+}
+
+export async function fetchAccessControlState(): Promise<AccessControlState> {
     const res = await fetch(`${API_BASE_URL}/access-control/cardholders`);
     if (!res.ok) throw new Error(`GET /access-control/cardholders failed: ${res.status}`);
-    const data = await res.json();
-    return data.cardholders;
+    return res.json();
+}
+
+export async function fetchCardholders(): Promise<Cardholder[]> {
+    const state = await fetchAccessControlState();
+    return state.cardholders;
 }
 
 export function badgeDoor(doorId: number, cardholderId: number) {
@@ -78,6 +137,20 @@ export function holdOpenDoor(doorId: number) {
 
 export function clearDoor(doorId: number) {
     return postJson(`/access-control/doors/${doorId}/clear`);
+}
+
+export interface AccessEvent {
+    door_id: number;
+    cardholder_id: number | null;
+    result: 'granted' | 'denied_level' | 'denied_schedule' | 'forced' | 'held_open';
+    reason: string;
+    timestamp: string;
+}
+
+export async function fetchAccessEvents(limit = 20): Promise<AccessEvent[]> {
+    const res = await fetch(`${API_BASE_URL}/access-control/events?limit=${limit}`);
+    if (!res.ok) throw new Error(`GET /access-control/events failed: ${res.status}`);
+    return res.json();
 }
 
 export interface Alarm {
@@ -139,4 +212,21 @@ async function patchJson(path: string, body: unknown): Promise<void> {
 
 export function setWorkOrderStatus(workOrderId: number, status: 'open' | 'in_progress' | 'done') {
     return patchJson(`/work-orders/${workOrderId}`, { status });
+}
+
+export interface HistorySample {
+    value: number;
+    timestamp: string;
+}
+
+export async function fetchHistory(
+    pointId: string,
+    minutes: number,
+    limit = 2000
+): Promise<HistorySample[]> {
+    const res = await fetch(
+        `${API_BASE_URL}/history/${encodeURIComponent(pointId)}?minutes=${minutes}&limit=${limit}`
+    );
+    if (!res.ok) throw new Error(`GET /history/${pointId} failed: ${res.status}`);
+    return res.json();
 }

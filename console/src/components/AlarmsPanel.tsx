@@ -8,10 +8,13 @@ const STATE_LABEL: Record<Alarm['state'], string> = {
     cleared: 'CLEARED'
 };
 
+type SortKey = 'newest' | 'priority';
+
 export default function AlarmsPanel() {
     const [alarms, setAlarms] = useState<Alarm[]>([]);
     const [busyId, setBusyId] = useState<number | null>(null);
     const [message, setMessage] = useState<string | null>(null);
+    const [sortKey, setSortKey] = useState<SortKey>('newest');
 
     useEffect(() => {
         let cancelled = false;
@@ -58,7 +61,9 @@ export default function AlarmsPanel() {
         }
     }
 
-    const sorted = [...alarms].sort((a, b) => b.id - a.id);
+    const sorted = [...alarms].sort((a, b) =>
+        sortKey === 'priority' ? a.priority - b.priority || b.id - a.id : b.id - a.id
+    );
 
     return (
         <div className="panel-section">
@@ -71,7 +76,19 @@ export default function AlarmsPanel() {
                 <table>
                     <thead>
                         <tr>
-                            <th>Priority</th>
+                            <th>
+                                <button
+                                    type="button"
+                                    className="th-sort"
+                                    onClick={() =>
+                                        setSortKey((k) =>
+                                            k === 'priority' ? 'newest' : 'priority'
+                                        )
+                                    }
+                                >
+                                    Priority{sortKey === 'priority' ? ' ▲' : ''}
+                                </button>
+                            </th>
                             <th>Message</th>
                             <th>State</th>
                             <th>Actions</th>

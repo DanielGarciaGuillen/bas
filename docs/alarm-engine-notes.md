@@ -63,6 +63,13 @@ per supervisor tick, via `asyncio.to_thread` so the write never blocks the poll 
 a few numeric points sampled every few seconds — not a production historian's retention or
 compression needs.
 
+## Console (M8)
+
+The Alarms tab shows this list sortable by priority or newest-first, plus the work order
+list underneath — the two stay on one tab rather than splitting into separate pages, since
+a work order is so often created *from* an alarm that the cause-and-effect is worth keeping
+visible without a tab switch. See `docs/engineering-notes.md`'s M8 section.
+
 ## What M6 does not do (and why)
 
 PLAN.md bundles a WebSocket push channel into M6 alongside the alarm engine, history, and
