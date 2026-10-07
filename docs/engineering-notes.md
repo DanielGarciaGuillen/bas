@@ -301,7 +301,40 @@ repo).
 
 ## M7 — Console shell, overview, AHU graphic
 
-_TODO after milestone._
+- **Concept:** up to M6 the console was one page (plus Notes). M7 splits it into a real
+  shell — Overview, AHU-1, Operations, Notes — each tab owning its own poll loop, so a tab
+  nobody has open isn't still hitting the gateway every 2.5s in the background.
+- **The floor plan that didn't get built, and why that's a documented choice, not a gap:**
+  PLAN.md's Overview page is an SVG floor plan with 4 VAV zones colored by temperature vs
+  setpoint. Those zones were never built — M2 simplified AHU-1 down to one BACnet device
+  with no VAV-101..104 (see M2's notes above) — so there's no per-zone temperature to
+  color a floor plan with. Building a floor plan anyway would mean inventing zone data
+  that doesn't correspond to anything the gateway actually polls. Overview instead
+  surfaces the building-level signals that *do* exist: occupancy mode, energy now, active
+  alarm count, fire panel condition, door status — the same category of information a real
+  overview screen leads with, scoped to what this lab actually simulates.
+- **The AHU graphic is read from live point IDs, not hand-positioned numbers:** `AhuGraphic.tsx`
+  takes the same `Point[]` the gateway's `/points` endpoint returns and looks up each value
+  by its point id (`ahu-1.oa_damper`, `ahu-1.fan_speed`, etc.) — so the schematic can't
+  silently drift out of sync with what the gateway is actually polling the way a
+  component with hardcoded mock values could.
+- **Animating the fan from `fan_status`, not `fan_speed`:** a real supply fan is either
+  running or it isn't — `fan_speed` just says how fast *if* running. Driving the spin
+  animation off the binary `fan_status` point (rather than, say, gating on `fan_speed > 0`)
+  matches how a real annunciator graphic would show it, and also means the fire interlock
+  (M4) visibly stops the fan graphic the instant `fan_status` goes inactive.
+- **A screenshot artifact worth knowing, not a bug:** capturing a static screenshot of the
+  spinning fan while its CSS animation was still running occasionally rendered the blades
+  as entirely invisible instead of motion-blurred — an animation/screenshot-timing
+  interaction, not a rendering defect. Confirmed by freezing the animation
+  (`animation: none`) before capturing: the blades render exactly as coded, correctly
+  colored and positioned. A live browser never has this problem — only a single frozen
+  frame caught at an unlucky instant can.
+- **Setpoint writes narrowed to the one point already proven safe:** the write form moved
+  from the old single-page Live tab to the new AHU-1 tab unchanged — still only SAT
+  setpoint, the same write path validated back in M2/M3. Static pressure setpoint is
+  polled and displayed but deliberately not wired to a second write form; adding it would
+  be "more of the same pattern," not a new concept worth the UI surface yet.
 
 ## M8 — Alarms console, fire annunciator, access log, trends, work orders
 

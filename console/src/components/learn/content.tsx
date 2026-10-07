@@ -32,12 +32,13 @@ export const MODULES: Module[] = [
                     <ConceptCard title="Live now">
                         Modbus meter, BACnet AHU-1 with a real sequence of operation, a fire panel
                         whose alarm can shut the AHU down, access control with per-door,
-                        per-cardholder decisions, and an alarm engine with trend history and work
-                        orders — try the demo buttons below.
+                        per-cardholder decisions, an alarm engine with trend history and work
+                        orders, and a four-tab console (Overview, AHU-1, Operations, Notes) — try
+                        the demo buttons on the Operations tab.
                     </ConceptCard>
                     <ConceptCard title="Up next">
-                        The full operator console — a floor plan, an AHU graphic, and a dedicated
-                        alarms/trends/network view grown from this same page.
+                        Console depth — a dedicated alarms console, fire annunciator, access log,
+                        trend charts, and the network design page.
                     </ConceptCard>
                     <ConceptCard title="Why one network">
                         A real site segments IT / BAS / security / fire onto separate VLANs (see{' '}
@@ -558,30 +559,84 @@ export const MODULES: Module[] = [
         )
     },
     {
+        id: 'm7',
+        navLabel: 'M7 · Console shell',
+        status: 'done',
+        heading: 'M7 · Console shell, Overview, AHU-1 graphic',
+        tag: 'one page becomes four tabs, each owning its own poll loop',
+        body: (
+            <>
+                <p>
+                    Through M6 this was one page plus Notes. M7 splits it into a real shell —
+                    Overview, AHU-1, Operations, and this Notes tab — each with its own poll loop,
+                    so a tab nobody has open isn't still hitting the gateway in the background.
+                </p>
+                <div className="concept-grid">
+                    <ConceptCard title="Overview, not a floor plan">
+                        PLAN.md's Overview is an SVG floor plan colored by per-zone temperature. No
+                        VAV zones exist (M2 simplified AHU-1 to one device, no VAV-101..104) —
+                        there's no zone data to color a floor plan with. Overview shows the
+                        building-level signals that do exist instead: occupancy, energy, alarm
+                        count, fire condition, door status.
+                    </ConceptCard>
+                    <ConceptCard title="The schematic reads real point IDs">
+                        <code>AhuGraphic.tsx</code> looks up every value by the same point id the
+                        gateway's <code>/points</code> endpoint returns (
+                        <code>ahu-1.oa_damper</code>, <code>ahu-1.fan_speed</code>, …) — it can't
+                        quietly drift from what's actually polled the way a mock-data component
+                        could.
+                    </ConceptCard>
+                    <ConceptCard title="Fan animation keys off status, not speed">
+                        A real fan is either running or it isn't; speed only matters if it's
+                        running. Driving the spin off the binary <code>fan_status</code> point means
+                        the fire interlock (M4) visibly stops the graphic the instant status goes
+                        inactive, not just the setpoint.
+                    </ConceptCard>
+                </div>
+
+                <FieldNote title="an invisible fan blade that wasn't a bug">
+                    <p>
+                        A screenshot of the spinning fan occasionally rendered the blades as
+                        entirely invisible instead of motion-blurred — a CSS-animation /
+                        screenshot-timing interaction, not a rendering defect. Freezing the
+                        animation before capturing showed the blades exactly as coded: correctly
+                        colored, correctly centered. A live browser never hits this — only a single
+                        frozen frame caught at the wrong instant can.
+                    </p>
+                </FieldNote>
+
+                <FlashCard
+                    q="Why not fake four VAV zones just to build the floor plan PLAN.md describes?"
+                    a="Because the floor plan's whole point is to show real per-zone temperature vs setpoint — data this lab never produces, since M2 deliberately scoped AHU-1 down to one device with no VAVs. Inventing zone numbers to fill a graphic would be decoration, not a simulation of anything. Overview shows what's actually live instead, and the simplification is written down rather than hidden."
+                />
+            </>
+        )
+    },
+    {
         id: 'later',
-        navLabel: 'M7 – M10 · Rest of the build',
+        navLabel: 'M8 – M10 · Rest of the build',
         status: 'next',
-        heading: 'M7 – M10 · Everything after that',
+        heading: 'M8 – M10 · Everything after that',
         tag: 'one line each, so the shape of the build stays visible',
         body: (
             <div className="teaser-list">
                 <div className="teaser">
-                    <span className="t-id">M7</span>
+                    <span className="t-id">M8</span>
                     <div>
-                        <h3>The full operator console</h3>
+                        <h3>Console depth</h3>
                         <p>
-                            Floor plan, AHU graphic, alarms, trends, fire annunciator, and the
-                            network page — grown from this same page.
+                            A dedicated alarms console, fire annunciator, access log, and trend
+                            charts — deeper views than Operations' flat table.
                         </p>
                     </div>
                 </div>
                 <div className="teaser">
-                    <span className="t-id">M8+</span>
+                    <span className="t-id">M9+</span>
                     <div>
-                        <h3>Console depth, network page, final write-up</h3>
+                        <h3>Network page, final write-up</h3>
                         <p>
-                            Alarms console, access log, trends, network design doc, demo video, and
-                            the resume-ready project summary.
+                            The network design doc rendered as a page, demo video, and the
+                            resume-ready project summary.
                         </p>
                     </div>
                 </div>
