@@ -29,3 +29,8 @@ dist/
 # Editors
 .vscode/
 .idea/
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
