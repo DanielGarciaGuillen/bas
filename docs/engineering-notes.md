@@ -386,7 +386,30 @@ repo).
 
 ## M9 — Network page + network design doc
 
-_TODO after milestone._
+- **Concept:** every other milestone simulates a real system; this one documents one that
+  was never going to be simulated — the lab runs on a single flat Docker bridge (`bas_net`)
+  on purpose (see M0's notes), but a real building's BAS/security/fire/IT segmentation is
+  exactly the kind of Network+ knowledge this project exists to showcase. `network-design.md`
+  was filled in with concrete subnets, ports, and firewall rules rather than left as the
+  TODO stub M0 created, and the console's new Network tab renders it directly.
+- **Filling in the TODOs instead of leaving them for later:** PLAN.md §11 originally
+  suggested leaving the VLAN table as a draft. By M9 every other doc in the project had
+  already been written out in full rather than left as a stub, so a half-finished network
+  doc would have been the one inconsistent page in the repo — filled in with realistic,
+  clearly-labeled values instead, the same way every prior milestone's docs were.
+- **Why fire alarm gets full isolation and BAS/Security only get "restricted":** BAS and
+  Security both need one narrow, specific path out (to the gateway, to the NVR) — a real
+  rule a firewall can express as "this VLAN, this one destination, these ports." Fire alarm
+  monitoring in a real building is often a dedicated circuit or phone line to a central
+  monitoring station, not a path *through* the building's own data network at all — so
+  "isolated" here isn't a stricter version of "restricted," it's a different kind of
+  boundary, and the diagram deliberately draws it with a different line style.
+- **The diagram is hand-rolled SVG, same decision as the Trends chart:** PLAN.md suggests
+  Mermaid, and `network-design.md` itself keeps a Mermaid block for anyone reading the
+  markdown directly. The console's own rendering is a dependency-free SVG component instead
+  (`NetworkDiagram.tsx`) — consistent with `LineChart.tsx`'s M8 reasoning: a static diagram
+  with five boxes and a few lines doesn't justify pulling in a diagramming library just to
+  render it inside an already-running React app.
 
 ## M10 — README polish, demo video, final write-up
 

@@ -33,13 +33,13 @@ export const MODULES: Module[] = [
                         Modbus meter, BACnet AHU-1 with a real sequence of operation, a fire panel
                         whose alarm can shut the AHU down, access control with per-door,
                         per-cardholder decisions, an alarm engine with trend history and work
-                        orders, and an eight-tab console (Overview, AHU-1, Fire Panel, Access,
-                        Alarms, Trends, Points, Notes) — try the demo buttons on the Fire Panel and
+                        orders, and a nine-tab console (Overview, AHU-1, Fire Panel, Access, Alarms,
+                        Trends, Points, Network, Notes) — try the demo buttons on the Fire Panel and
                         Access tabs.
                     </ConceptCard>
                     <ConceptCard title="Up next">
-                        The network design page — rendering the VLAN/IP plan from{' '}
-                        <code>docs/network-design.md</code> as a console view.
+                        The final write-up — README polish, a demo video script, and the
+                        resume-ready project summary.
                     </ConceptCard>
                     <ConceptCard title="Why one network">
                         A real site segments IT / BAS / security / fire onto separate VLANs (see{' '}
@@ -668,23 +668,66 @@ export const MODULES: Module[] = [
         )
     },
     {
+        id: 'm9',
+        navLabel: 'M9 · Network page',
+        status: 'done',
+        heading: 'M9 · Network design page',
+        tag: 'the one page documenting a system this lab never simulates',
+        body: (
+            <>
+                <p>
+                    Every other milestone simulates a real system. This one documents one that was
+                    never going to be — the lab runs on a single flat Docker bridge on purpose, but
+                    a real building's VLAN segmentation is exactly the Network+ knowledge this
+                    project exists to show. <code>docs/network-design.md</code> was filled in with
+                    real subnets, ports, and firewall rules instead of left as the TODO stub from
+                    M0, and this page renders it directly.
+                </p>
+                <div className="concept-grid">
+                    <ConceptCard title="Restricted vs. isolated">
+                        BAS and Security each need one narrow path out (to the gateway, to the NVR)
+                        — a firewall rule can name it precisely. Fire alarm monitoring in a real
+                        building is often its own dedicated circuit, not a path through the data
+                        network at all — a different kind of boundary, drawn with a different line
+                        style in the diagram.
+                    </ConceptCard>
+                    <ConceptCard title="Static where it can't drift">
+                        Field controllers, panels, and cameras run static IPs — a controller's
+                        address can't drift out from under the supervisor polling it. DHCP is for
+                        the one VLAN where devices actually come and go: IT/Corporate.
+                    </ConceptCard>
+                    <ConceptCard title="No new diagramming library">
+                        Same call as the Trends chart (M8): five boxes and a few lines don't justify
+                        a dependency. <code>NetworkDiagram.tsx</code> is dependency-free SVG, styled
+                        through the same design tokens as the rest of the console.
+                    </ConceptCard>
+                </div>
+
+                <FieldNote title="filling in the TODOs instead of leaving them">
+                    <p>
+                        PLAN.md originally suggested leaving the VLAN table as a draft for later. By
+                        M9, every other doc in the repo had already been written out in full — a
+                        half-finished network doc would have been the one inconsistent page. Filled
+                        in with realistic, clearly-labeled values instead, the same way every prior
+                        milestone's docs were.
+                    </p>
+                </FieldNote>
+
+                <FlashCard
+                    q="Why does a BACnet network need a BBMD when it spans more than one IP subnet?"
+                    a="BACnet/IP devices discover each other with broadcast frames (Who-Is/I-Am), and IP broadcasts don't cross a routed subnet boundary — a router simply won't forward them. A BBMD (BACnet Broadcast Management Device) sits on each subnet and re-sends broadcasts it receives to the other BBMDs it's registered with, so devices on different subnets can still find each other. This lab's bas_net is one flat subnet, so it never needed one — but a real building with controllers split across multiple mechanical-room subnets does."
+                />
+            </>
+        )
+    },
+    {
         id: 'later',
-        navLabel: 'M9 – M10 · Rest of the build',
+        navLabel: 'M10 · Final write-up',
         status: 'next',
-        heading: 'M9 – M10 · Everything after that',
-        tag: 'one line each, so the shape of the build stays visible',
+        heading: 'M10 · Everything after that',
+        tag: 'one line, so the shape of the build stays visible',
         body: (
             <div className="teaser-list">
-                <div className="teaser">
-                    <span className="t-id">M9</span>
-                    <div>
-                        <h3>Network page</h3>
-                        <p>
-                            The network design doc (VLANs, IP plan, firewall rules) rendered as a
-                            console page, closing the Network+ loop.
-                        </p>
-                    </div>
-                </div>
                 <div className="teaser">
                     <span className="t-id">M10</span>
                     <div>
