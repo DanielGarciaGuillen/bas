@@ -5,12 +5,22 @@ import AhuPanel from '@/components/AhuPanel';
 import AlarmsPanel from '@/components/AlarmsPanel';
 import FirePanelAnnunciator from '@/components/FirePanelAnnunciator';
 import Learn from '@/components/Learn';
+import NetworkPage from '@/components/NetworkPage';
 import Points from '@/components/Points';
 import Overview from '@/components/Overview';
 import TrendsPanel from '@/components/TrendsPanel';
 import WorkOrdersPanel from '@/components/WorkOrdersPanel';
 
-type Tab = 'overview' | 'ahu' | 'fire' | 'access' | 'alarms' | 'trends' | 'points' | 'learn';
+type Tab =
+    | 'overview'
+    | 'ahu'
+    | 'fire'
+    | 'access'
+    | 'alarms'
+    | 'trends'
+    | 'points'
+    | 'network'
+    | 'learn';
 
 const TAB_LABEL: Record<Tab, string> = {
     overview: 'Overview',
@@ -20,6 +30,7 @@ const TAB_LABEL: Record<Tab, string> = {
     alarms: 'Alarms',
     trends: 'Trends',
     points: 'Points',
+    network: 'Network',
     learn: 'Build Notes'
 };
 
@@ -60,6 +71,7 @@ export default function App() {
             )}
             {tab === 'trends' && <TrendsPanel />}
             {tab === 'points' && <Points />}
+            {tab === 'network' && <NetworkPage />}
             {tab === 'learn' && <Learn />}
         </div>
     );

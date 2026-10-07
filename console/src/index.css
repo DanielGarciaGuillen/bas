@@ -710,3 +710,74 @@ pre {
     font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
+
+/* --- network page --- */
+.net-notes {
+    margin: 0.75rem 0 1.25rem;
+    padding-left: 1.2rem;
+    font-size: 0.86rem;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.net-notes li {
+    max-width: 68ch;
+}
+.net-notes b {
+    color: var(--text);
+}
+.net-diagram-wrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+.net-diagram {
+    width: 100%;
+    height: auto;
+}
+.net-box {
+    fill: var(--bg);
+    stroke: var(--line);
+    stroke-width: 1.5;
+    rx: 6;
+}
+.net-box-fw {
+    stroke: var(--accent);
+}
+.net-box-device {
+    stroke: var(--info);
+}
+.net-link {
+    stroke: var(--border);
+    stroke-width: 1.5;
+}
+.net-link-restricted {
+    stroke: var(--accent);
+    stroke-dasharray: 5 4;
+}
+.net-link-isolated {
+    stroke: var(--fault);
+    stroke-dasharray: 2 4;
+}
+.net-label {
+    fill: var(--muted);
+    font-size: 11px;
+}
+.net-label-strong {
+    fill: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+}
+.net-label-mono {
+    fill: var(--muted);
+    font-size: 10px;
+    font-family: ui-monospace, monospace;
+}
+.net-link-label {
+    fill: var(--muted);
+    font-size: 9px;
+    font-style: italic;
+}

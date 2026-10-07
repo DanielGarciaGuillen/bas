@@ -18,8 +18,8 @@
  └────────────────────────────────────────┼─────────────────────────────────────┘
                                           ▼
                        [React + TypeScript Console :5173]
-       Overview · AHU-1 · Fire Panel · Access · Alarms · Trends · Points · Notes
-                         — eight tabs, each its own poll loop
+  Overview · AHU-1 · Fire Panel · Access · Alarms · Trends · Points · Network · Notes
+                       — nine tabs, each its own poll loop
 ```
 
 VAV-101..104 aren't built yet — see `bacnet-points-list.md` and the console's Notes tab.
@@ -33,9 +33,9 @@ VAV-101..104 aren't built yet — see `bacnet-points-list.md` and the console's 
 | `sims/fire_panel` | Fire alarm panel FSM over REST (`panel.py`), now with an event log | M4/M8 |
 | `sims/access_control` | Door/cardholder access-decision FSM over REST (`access.py`) | M5 |
 | `gateway` | Polls all of the above, normalizes into one point shape, drives the fire interlock, runs the alarm engine + trend history + work orders, serves REST | M1–M6 |
-| `console` | React operator console: eight dedicated tabs | M1–M8 |
+| `console` | React operator console: nine dedicated tabs | M1–M9 |
 
-## Console tabs (M7/M8)
+## Console tabs (M7–M9)
 
 | Tab | Shows |
 |---|---|
@@ -46,6 +46,7 @@ VAV-101..104 aren't built yet — see `bacnet-points-list.md` and the console's 
 | Alarms | A sortable (by priority or newest) alarms table plus the work orders list — see `alarm-engine-notes.md` |
 | Trends | One point, one time range, a hand-rolled SVG line chart reading `GET /history/{point_id}` |
 | Points | The raw normalized points table, for debugging |
+| Network | The VLAN plan, IP addressing, ports/protocols, firewall rules, and a hand-rolled SVG diagram — rendered straight from `network-design.md` |
 | Notes | Engineering notes, folded into the app milestone by milestone |
 
 ## Alarm engine, history, work orders (M6)
