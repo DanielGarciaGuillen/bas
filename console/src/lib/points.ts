@@ -17,3 +17,12 @@ export function formatValue(point: Point): string {
     if (typeof point.value === 'number') return point.value.toLocaleString();
     return point.value;
 }
+
+export function pointById(points: Point[], id: string): Point | undefined {
+    return points.find((p) => p.id === id);
+}
+
+export function numericValue(points: Point[], id: string): number | null {
+    const point = pointById(points, id);
+    return typeof point?.value === 'number' ? point.value : null;
+}

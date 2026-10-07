@@ -18,8 +18,8 @@
  └────────────────────────────────────────┼─────────────────────────────────────┘
                                           ▼
                        [React + TypeScript Console :5173]
-                  Live points table · setpoint writes · alarms &
-               work orders panels · fire/access demo controls · Notes tab
+                Overview · AHU-1 graphic · Operations (points, demo
+             controls, alarms, work orders) · Notes tab — four tabs, one shell
 ```
 
 VAV-101..104 aren't built yet — see `bacnet-points-list.md` and the console's Notes tab.
@@ -33,7 +33,16 @@ VAV-101..104 aren't built yet — see `bacnet-points-list.md` and the console's 
 | `sims/fire_panel` | Fire alarm panel FSM over REST (`panel.py`) | M4 |
 | `sims/access_control` | Door/cardholder access-decision FSM over REST (`access.py`) | M5 |
 | `gateway` | Polls all of the above, normalizes into one point shape, drives the fire interlock, runs the alarm engine + trend history + work orders, serves REST | M1–M6 |
-| `console` | React Live-points monitor, alarms/work-orders panels, in-app Notes tab | early (grows into the full M7 console) |
+| `console` | React operator console: Overview, AHU-1 graphic, Operations, Notes tabs | M1–M7 |
+
+## Console tabs (M7)
+
+| Tab | Shows |
+|---|---|
+| Overview | Occupancy mode, energy now, active alarm count, fire panel condition, door status — building-level signals, not a per-zone floor plan (no VAV zones exist; see `engineering-notes.md`) |
+| AHU-1 | SVG schematic (OA damper → filter → cooling/heating coils → fan → supply duct) with live values, an animated fan tied to `fan_status`, and the SAT setpoint write form |
+| Operations | The full points table, fire/access demo controls, the alarms panel, and the work orders panel |
+| Notes | Engineering notes, folded into the app milestone by milestone |
 
 ## Alarm engine, history, work orders (M6)
 

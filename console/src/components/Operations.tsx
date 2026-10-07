@@ -4,7 +4,7 @@ import AccessControlControls from '@/components/AccessControlControls';
 import AlarmsPanel from '@/components/AlarmsPanel';
 import FirePanelControls from '@/components/FirePanelControls';
 import WorkOrdersPanel from '@/components/WorkOrdersPanel';
-import { fetchPoints, writeAhu1Setpoint, type Point } from '@/lib/api';
+import { fetchPoints, type Point } from '@/lib/api';
 import { formatValue, protocolFor } from '@/lib/points';
 
 const POLL_INTERVAL_MS = 2500;
@@ -15,13 +15,10 @@ const STATUS_STYLE: Record<Point['status'], { bg: string; fg: string; label: str
     stale: { bg: 'var(--accent-soft)', fg: 'var(--accent)', label: 'STALE' }
 };
 
-export default function LivePoints() {
+export default function Operations() {
     const [points, setPoints] = useState<Point[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-    const [setpointInput, setSetpointInput] = useState('22.0');
-    const [writing, setWriting] = useState(false);
-    const [writeMessage, setWriteMessage] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -50,22 +47,6 @@ export default function LivePoints() {
 
     const okCount = points.filter((p) => p.status === 'ok').length;
     const faultCount = points.filter((p) => p.status === 'fault').length;
-
-    async function handleWriteSetpoint(e: React.FormEvent) {
-        e.preventDefault();
-        const value = Number.parseFloat(setpointInput);
-        if (Number.isNaN(value)) return;
-        setWriting(true);
-        setWriteMessage(null);
-        try {
-            await writeAhu1Setpoint(value);
-            setWriteMessage(`Wrote ${value} °C`);
-        } catch {
-            setWriteMessage('Write failed');
-        } finally {
-            setWriting(false);
-        }
-    }
 
     return (
         <>
@@ -122,21 +103,6 @@ export default function LivePoints() {
                         })}
                 </tbody>
             </table>
-
-            <form className="setpoint-form" onSubmit={handleWriteSetpoint}>
-                <label htmlFor="setpoint">AHU-1 SAT setpoint (°C)</label>
-                <input
-                    id="setpoint"
-                    type="number"
-                    step="0.5"
-                    value={setpointInput}
-                    onChange={(e) => setSetpointInput(e.target.value)}
-                />
-                <button type="submit" disabled={writing}>
-                    {writing ? 'Writing…' : 'Write to BACnet'}
-                </button>
-                {writeMessage && <span className="write-message">{writeMessage}</span>}
-            </form>
 
             <FirePanelControls />
             <AccessControlControls />

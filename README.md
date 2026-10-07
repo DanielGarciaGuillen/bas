@@ -14,11 +14,12 @@ exposed through a React console.
 
 ## Status
 
-M0–M6 done: Modbus meter, BACnet AHU-1 with a real PI-loop sequence of operation, a fire
+M0–M7 done: Modbus meter, BACnet AHU-1 with a real PI-loop sequence of operation, a fire
 alarm panel whose alarm shuts the AHU down via a BACnet priority override, access control
-with per-door/per-cardholder access decisions, and an alarm engine with trend history and
-work orders. M7 (the full operator console) is next. Design decisions and debugging notes
-live in the console's **Notes** tab and
+with per-door/per-cardholder access decisions, an alarm engine with trend history and work
+orders, and a four-tab operator console (Overview, AHU-1 graphic, Operations, Notes). M8
+(alarms console, fire annunciator, access log, trends) is next. Design decisions and
+debugging notes live in the console's **Notes** tab and
 [`docs/engineering-notes.md`](docs/engineering-notes.md).
 
 ## Running it
@@ -27,8 +28,9 @@ live in the console's **Notes** tab and
 docker compose up --build modbus-meter bacnet-devices fire-panel access-control gateway console
 ```
 
-- Console: `http://localhost:5173` — live points, setpoint writes, fire panel + access
-  control demo controls, and the Notes tab
+- Console: `http://localhost:5173` — Overview, an AHU-1 schematic with live values and
+  setpoint writes, an Operations tab (points table, fire/access demo controls, alarms,
+  work orders), and the Notes tab
 - Gateway API docs: `http://localhost:8000/docs`
 
 Local dev without Docker: `cd console && pnpm install && pnpm run dev`.
