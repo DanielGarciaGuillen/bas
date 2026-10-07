@@ -115,10 +115,14 @@ class AlarmEngine:
             self._clear(key, now)
 
     def _evaluate_doors(self, points: dict, now: datetime) -> None:
-        for door_num in (1, 2, 3):
-            key = f"access-control.door{door_num}"
-            point = points.get(key)
-            if point is None or point["value"] is None:
+        # Scans whatever doors access_control.py actually published, rather than a fixed
+        # count — access_control.py's own poller already iterates the sim's real door
+        # list with no limit, so a 4th door added there is covered here too, instead of
+        # silently going unalarmed.
+        for key, point in points.items():
+            if not key.startswith("access-control.door"):
+                continue
+            if point["value"] is None:
                 continue
             if point["value"] in ("FORCED", "HELD_OPEN"):
                 self._raise(key, f"{point['name']} is {point['value']}", priority=2, now=now)
@@ -126,6 +130,14 @@ class AlarmEngine:
                 self._clear(key, now)
 
     def _evaluate_fan_mismatch(self, points: dict, now: datetime) -> None:
+        # Unreachable against the live stack today: sims/bacnet_devices/main.py mirrors
+        # fan_status from fan_command unconditionally (no fault-injection path exists for
+        # a stuck/failed fan), so these two values can never disagree outside this file's
+        # own unit tests. The rule is kept — it's the right rule for a real fan-status
+        # mismatch, and it's exercised directly below — but demoing it live would need a
+        # fault-injection surface on the AHU sim, matching the demo-trigger pattern the
+        # other three sims already have. Deliberately not built here; see
+        # docs/alarm-engine-notes.md.
         key = "ahu-1.fan_mismatch"
         command = points.get("ahu-1.fan_command")
         status = points.get("ahu-1.fan_status")

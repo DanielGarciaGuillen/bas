@@ -435,3 +435,53 @@ repo).
   priority array, a real fan-shutdown sequence, a PI loop debugged against two distinct
   failure modes (integral windup, a bang-bang limit cycle) found only by running the
   simulation, not by reading the code.
+
+## Post-M10 — backend tactical refactor pass
+
+A `dx-refactor-scan` across the whole repo surfaced 14 tactical and 9 strategic findings.
+This batch covers the backend/Python half of the tactical tier (the console/TypeScript
+half is a separate pass):
+
+- **Normalized point shape unified behind `state.set_point()`/`fault_point()`/
+  `fault_device()`:** the 6-key point literal used to be hand-written twice per poller
+  (ok path + fault path) across all 4 pollers — 11 call sites total. More than
+  de-duplication: the fault paths had quietly diverged. `fire_panel.py`'s fault branch
+  nulled only `fire-panel.condition`, leaving every zone point and the interlock status
+  showing a stale value tagged `status: "ok"` straight through a panel outage;
+  `access_control.py`'s did the same for `last_event` alone, leaving `door1..3` stale.
+  Verified live: stopping the access-control container now correctly faults all 4 of its
+  points together (confirmed via `docker compose stop access-control` + `GET /points`),
+  where before only `last_event` would have flipped.
+- **The alarm engine's door scan was a hardcoded `(1, 2, 3)`:** now scans `points` for
+  the `access-control.door` prefix, matching what `access_control.py`'s own poller
+  already does with no fixed count. A 4th door would previously have raised no alarm at
+  all, silently. Added a regression test (`test_forced_door_beyond_the_default_three_still_raises_an_alarm`).
+- **Occupancy mode collapsed from three independent declarations to one:**
+  `sims/bacnet_devices/main.py` used to declare `OCCUPANCY_STATE_TEXT` (a list) and
+  `MODE_TO_STATE_INDEX` (a dict) separately, linked only by both authors remembering to
+  keep the integers in the same order; `gateway/app/bacnet_ahu.py` kept a third,
+  independent copy of the labels. The sim side is now one ordered `OCCUPANCY_MODES` list
+  deriving both; the gateway's copy is the one that remains (reading `stateText` live off
+  the BACnet object would remove it entirely, at the cost of an extra `ReadProperty` per
+  poll — not worth it for one AHU), now with a comment naming it as the one hand-synced
+  copy instead of implying there's an enforced link that doesn't exist.
+- **`AHU_POINTS` was re-spelling two BACnet objects that already had named constants**
+  (`AO_OA_DAMPER`, `BO_FAN_COMMAND`) as inline magic tuples a few lines below their
+  declaration — now uses the constants, so the interlock's write target and the poller's
+  read target can't silently desync.
+- **The fan-mismatch alarm rule's unreachability against the live sim is now
+  documented, not silently true:** `sims/bacnet_devices/main.py` mirrors `fan_status`
+  from `fan_command` unconditionally, so `_evaluate_fan_mismatch` can never fire outside
+  its own unit tests. Documented in both the rule itself and `alarm-engine-notes.md`
+  rather than built around — adding a believable fault-injection surface across every sim
+  is a bigger, decision-needing piece of work than this one rule justifies alone.
+- **`Zone`/`Door`/`Cardholder` default-copying switched from re-listing every field by
+  name to `dataclasses.replace()`:** the original fix for the shared-mutable-default bug
+  (M4/M5) rebuilt fresh instances by naming each field explicitly — correct today, but
+  silently falls back to the dataclass's bare default for any field added later instead of
+  what `DEFAULT_ZONES`/`DEFAULT_DOORS`/`DEFAULT_CARDHOLDERS` actually declare.
+  `replace()` copies whatever fields exist, automatically.
+- **`state.py` gained its first unit tests** (`test_state.py`) — the new helpers are pure
+  dict manipulation with no I/O, extracted from what used to be inline literals in
+  0%-covered poller files. Consistent with the project's whole pattern: pure logic gets
+  extracted and tested, I/O stays thin.

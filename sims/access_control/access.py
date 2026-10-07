@@ -6,7 +6,7 @@ unit-testable on their own. See docs/access-control-notes.md for the plain-Engli
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, time
 from typing import Literal
 
@@ -71,18 +71,14 @@ class AccessControlSystem:
         # Fresh instances per system — same bug class as sims/fire_panel/panel.py's
         # Panel: reusing DEFAULT_DOORS/DEFAULT_CARDHOLDERS objects directly would share
         # them by reference across every AccessControlSystem ever constructed.
+        # replace(d)/replace(c) copy every field automatically — unlike re-listing each
+        # field by name, adding a field to Door/Cardholder can't silently fall back to
+        # the dataclass's bare default here instead of what DEFAULT_DOORS/
+        # DEFAULT_CARDHOLDERS actually declare.
         if not self.doors:
-            self.doors = {
-                d.id: Door(id=d.id, name=d.name, required_level=d.required_level, state=d.state)
-                for d in DEFAULT_DOORS
-            }
+            self.doors = {d.id: replace(d) for d in DEFAULT_DOORS}
         if not self.cardholders:
-            self.cardholders = {
-                c.id: Cardholder(
-                    id=c.id, name=c.name, access_level=c.access_level, schedule=c.schedule
-                )
-                for c in DEFAULT_CARDHOLDERS
-            }
+            self.cardholders = {c.id: replace(c) for c in DEFAULT_CARDHOLDERS}
 
 
 BUSINESS_START = time(8, 0)

@@ -1,8 +1,12 @@
 """Polls (and writes to) AHU-1 over BACnet/IP.
 
-Unlike the Modbus meter, nothing here needs a hand-maintained register map: every object
-carries its own type/name/units, so the gateway reads those directly off the device instead
-of hardcoding them. See docs/bacnet-points-list.md.
+Unlike the Modbus meter, BACnet objects are self-describing on the wire (type/name/units
+all live on the object itself) — but `AHU_POINTS` below still hand-maintains a point key,
+display name, and units per object instead of reading them off the device. That's a
+pragmatic shortcut, not a protocol limitation: one `ReadPropertyMultiple` per poll could
+fetch `objectName`/`units` directly, but for one AHU on localhost it's simpler to keep this
+list in sync with sims/bacnet_devices/main.py's object list by hand (the "must match"
+comments below exist for exactly that reason). See docs/bacnet-points-list.md.
 
 One `ReadProperty` per point per poll, in sequence — twelve round trips every cycle. A
 real integration would use `ReadPropertyMultiple` to batch these into one request; noted
@@ -20,7 +24,7 @@ from bacpypes3.local.device import DeviceObject
 from bacpypes3.pdu import IPv4Address
 from bacpypes3.primitivedata import Null, ObjectIdentifier
 
-from .state import points
+from .state import fault_point, set_point
 
 log = logging.getLogger("gateway.bacnet_ahu")
 
@@ -57,15 +61,18 @@ AHU_POINTS: list[tuple[str, ObjectIdentifier, str, str | None]] = [
     ("rat", ObjectIdentifier(("analogInput", 3)), "Return Air Temp", "degC"),
     ("heating_valve", ObjectIdentifier(("analogOutput", 3)), "Heating Valve", "%"),
     ("cooling_valve", ObjectIdentifier(("analogOutput", 2)), "Cooling Valve", "%"),
-    ("oa_damper", ObjectIdentifier(("analogOutput", 4)), "OA Damper", "%"),
+    ("oa_damper", AO_OA_DAMPER, "OA Damper", "%"),
     ("static_pressure_setpoint", AV_STATIC_PRESSURE_SETPOINT, "Static Pressure Setpoint", "inWC"),
     ("static_pressure", ObjectIdentifier(("analogInput", 4)), "Duct Static Pressure", "inWC"),
     ("fan_speed", ObjectIdentifier(("analogOutput", 1)), "Supply Fan Speed", "%"),
-    ("fan_command", ObjectIdentifier(("binaryOutput", 1)), "Supply Fan Command", None),
+    ("fan_command", BO_FAN_COMMAND, "Supply Fan Command", None),
     ("fan_status", ObjectIdentifier(("binaryInput", 1)), "Supply Fan Status", None),
 ]
 
-# Must match sims/bacnet_devices/main.py's OCCUPANCY_STATE_TEXT / MODE_TO_STATE_INDEX.
+# Must match sims/bacnet_devices/main.py's OCCUPANCY_MODES (now that file's single
+# source of truth for the wire-side state text and index mapping). This dict is the one
+# remaining hand-synced copy — reading `stateText` live off the multi-state object would
+# remove it entirely, but costs an extra ReadProperty per poll; not worth it for one AHU.
 OCCUPANCY_LABELS = {1: "Occupied", 2: "Unoccupied", 3: "Warm-up"}
 
 # A remote ReadProperty on a binary object comes back as a plain 0/1 int, not the nicer
@@ -161,24 +168,9 @@ async def poll_ahu_forever() -> None:
                     timeout=READ_TIMEOUT_S,
                 )
                 point_id = f"ahu-1.{key}"
-                points[point_id] = {
-                    "id": point_id,
-                    "device": "ahu-1",
-                    "name": name,
-                    "value": _format_value(key, raw),
-                    "units": units,
-                    "status": "ok",
-                }
+                set_point(point_id, "ahu-1", name, _format_value(key, raw), units)
         except Exception:
             log.exception("Failed to poll AHU-1 at %s", AHU_ADDRESS)
             for key, _object_id, name, units in AHU_POINTS:
-                point_id = f"ahu-1.{key}"
-                points[point_id] = {
-                    "id": point_id,
-                    "device": "ahu-1",
-                    "name": name,
-                    "value": None,
-                    "units": units,
-                    "status": "fault",
-                }
+                fault_point(f"ahu-1.{key}", "ahu-1", name, units)
         await asyncio.sleep(POLL_INTERVAL_S)

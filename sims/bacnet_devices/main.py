@@ -61,9 +61,18 @@ SIM_START_HOUR = float(os.environ.get("AHU_SIM_START_HOUR", "7.5"))
 
 AHU1_DEVICE_INSTANCE = 10001
 
-# BACnet multi-state objects are 1-indexed; order must match stateText below.
-OCCUPANCY_STATE_TEXT = ["Occupied", "Unoccupied", "Warm-up"]
-MODE_TO_STATE_INDEX = {"occupied": 1, "unoccupied": 2, "warmup": 3}
+# BACnet multi-state objects are 1-indexed. One ordered list is the single source of
+# truth for both the wire-visible stateText and the mode-name-to-index mapping, so
+# reordering a mode can't silently desync the two the way two independently-maintained
+# collections could. gateway/app/bacnet_ahu.py's OCCUPANCY_LABELS is a hand-synced copy
+# of this list's labels — see its own comment.
+OCCUPANCY_MODES: list[tuple[str, str]] = [
+    ("occupied", "Occupied"),
+    ("unoccupied", "Unoccupied"),
+    ("warmup", "Warm-up"),
+]
+OCCUPANCY_STATE_TEXT = [label for _key, label in OCCUPANCY_MODES]
+MODE_TO_STATE_INDEX = {key: index for index, (key, _label) in enumerate(OCCUPANCY_MODES, start=1)}
 
 
 class Ahu1Plant:

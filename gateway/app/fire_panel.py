@@ -16,7 +16,7 @@ import os
 import httpx
 
 from . import bacnet_ahu
-from .state import points
+from .state import fault_device, fault_point, set_point
 
 log = logging.getLogger("gateway.fire_panel")
 
@@ -33,24 +33,15 @@ async def poll_fire_panel_forever() -> None:
                 resp.raise_for_status()
                 data = resp.json()
 
-                points["fire-panel.condition"] = {
-                    "id": "fire-panel.condition",
-                    "device": "fire-panel",
-                    "name": "Panel Condition",
-                    "value": data["condition"].upper(),
-                    "units": None,
-                    "status": "ok",
-                }
+                set_point(
+                    "fire-panel.condition",
+                    "fire-panel",
+                    "Panel Condition",
+                    data["condition"].upper(),
+                )
                 for zone in data["zones"]:
                     point_id = f"fire-panel.zone{zone['id']}"
-                    points[point_id] = {
-                        "id": point_id,
-                        "device": "fire-panel",
-                        "name": zone["name"],
-                        "value": zone["condition"].upper(),
-                        "units": None,
-                        "status": "ok",
-                    }
+                    set_point(point_id, "fire-panel", zone["name"], zone["condition"].upper())
 
                 if data["any_alarm"]:
                     await bacnet_ahu.engage_fire_interlock()
@@ -58,22 +49,14 @@ async def poll_fire_panel_forever() -> None:
                 else:
                     await bacnet_ahu.release_fire_interlock()
                     interlock_value = "inactive"
-                points["ahu-1.fire_interlock"] = {
-                    "id": "ahu-1.fire_interlock",
-                    "device": "ahu-1",
-                    "name": "Fire Interlock",
-                    "value": interlock_value,
-                    "units": None,
-                    "status": "ok",
-                }
+                set_point("ahu-1.fire_interlock", "ahu-1", "Fire Interlock", interlock_value)
             except Exception:
                 log.exception("Failed to poll fire panel at %s", FIRE_PANEL_URL)
-                points["fire-panel.condition"] = {
-                    "id": "fire-panel.condition",
-                    "device": "fire-panel",
-                    "name": "Panel Condition",
-                    "value": None,
-                    "units": None,
-                    "status": "fault",
-                }
+                # Previously only `condition` was faulted, leaving every zone point and
+                # the interlock status showing a stale value tagged status "ok" straight
+                # through a fire-panel outage — exactly the condition the alarm engine's
+                # fire rule keeps evaluating against. Fault everything this poller owns.
+                fault_point("fire-panel.condition", "fire-panel", "Panel Condition")
+                fault_device("fire-panel")
+                fault_point("ahu-1.fire_interlock", "ahu-1", "Fire Interlock")
             await asyncio.sleep(POLL_INTERVAL_S)

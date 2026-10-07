@@ -11,7 +11,7 @@ import os
 
 from pymodbus.client import AsyncModbusTcpClient
 
-from .state import points
+from .state import fault_point, set_point
 
 log = logging.getLogger("gateway.modbus_meter")
 
@@ -35,22 +35,8 @@ async def poll_meter_forever() -> None:
             result = await client.read_input_registers(IR_KW, count=1, slave=1)
             if result.isError():
                 raise OSError(f"Modbus error reading meter: {result}")
-            points["meter-1.kw"] = {
-                "id": "meter-1.kw",
-                "device": "meter-1",
-                "name": "kW Total",
-                "value": decode_kw(result.registers[0]),
-                "units": "kW",
-                "status": "ok",
-            }
+            set_point("meter-1.kw", "meter-1", "kW Total", decode_kw(result.registers[0]), "kW")
         except Exception:
             log.exception("Failed to poll Modbus meter at %s:%s", METER_HOST, METER_PORT)
-            points["meter-1.kw"] = {
-                "id": "meter-1.kw",
-                "device": "meter-1",
-                "name": "kW Total",
-                "value": None,
-                "units": "kW",
-                "status": "fault",
-            }
+            fault_point("meter-1.kw", "meter-1", "kW Total", "kW")
         await asyncio.sleep(POLL_INTERVAL_S)

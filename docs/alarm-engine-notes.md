@@ -42,6 +42,15 @@ engine tracks a per-point "deviation since" timestamp, raises only once that's b
 continuously past the delay, and resets the timestamp the moment the point comes back
 inside the deadband — so a loop that's still converging never trips it.
 
+**The fan-mismatch rule is currently unreachable against the live stack.**
+`sims/bacnet_devices/main.py` mirrors `fan_status` from `fan_command` unconditionally — no
+fault-injection path exists for a stuck or failed fan — so the two values this rule
+compares can never actually disagree outside the rule's own unit tests. It's the right
+rule, and it's directly unit-tested, but demoing it live needs a fault-injection control on
+the AHU sim (matching the trigger-based demo pattern the fire panel and access control
+sims already have). Not built — adding a believable "fault injection" surface across every
+sim is a bigger, decision-needing piece of work than this rule alone justifies on its own.
+
 ## Work orders
 
 A work order (`gateway/app/work_orders.py`) is a plain record — `asset`, `problem`,

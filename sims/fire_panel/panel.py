@@ -7,7 +7,7 @@ plain-English version, and the disclaimer there about real fire alarm systems.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Literal
 
@@ -49,12 +49,10 @@ class Panel:
             # (triggering a zone, clearing it) leak into every other Panel ever
             # constructed. Caught by the test suite itself: tests passed in isolation
             # but failed once run together in one session.
-            self.zones = {
-                z.id: Zone(
-                    id=z.id, name=z.name, condition=z.condition, field_cleared=z.field_cleared
-                )
-                for z in DEFAULT_ZONES
-            }
+            # replace(z) copies every field automatically — unlike re-listing each field
+            # by name, adding a field to Zone can't silently fall back to the dataclass's
+            # bare default here instead of what DEFAULT_ZONES actually declares.
+            self.zones = {z.id: replace(z) for z in DEFAULT_ZONES}
 
 
 # One zone per PLAN §4.3's device list; zone 4 groups the duct detector and flow switch
