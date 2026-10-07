@@ -75,6 +75,21 @@ jobs:
       - run: python -m pytest -q
         working-directory: sims/fire_panel
 
+  access-control-tests:
+    name: Access control tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: sims/access_control/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+        working-directory: sims/access_control
+      - run: python -m pytest -q
+        working-directory: sims/access_control
+
   console:
     name: Console lint, format, typecheck, test, build
     runs-on: ubuntu-latest
@@ -111,4 +126,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - run: docker compose build modbus-meter bacnet-devices fire-panel gateway console
+      - run: docker compose build modbus-meter bacnet-devices fire-panel access-control gateway console

@@ -30,12 +30,13 @@ export const MODULES: Module[] = [
                 <ArchitectureDiagram />
                 <div className="concept-grid">
                     <ConceptCard title="Live now">
-                        Modbus meter, BACnet AHU-1 with a real sequence of operation, and a fire
-                        panel whose alarm can shut the AHU down — try the demo buttons below.
+                        Modbus meter, BACnet AHU-1 with a real sequence of operation, a fire panel
+                        whose alarm can shut the AHU down, and access control with per-door,
+                        per-cardholder decisions — try the demo buttons below.
                     </ConceptCard>
                     <ConceptCard title="Up next">
-                        Access control — door events, forced/held alarms, access levels and
-                        schedules.
+                        The alarm engine — forced/held-open doors and fire conditions become real
+                        alarms with a lifecycle, history, and work orders.
                     </ConceptCard>
                     <ConceptCard title="Why one network">
                         A real site segments IT / BAS / security / fire onto separate VLANs (see{' '}
@@ -395,20 +396,100 @@ export const MODULES: Module[] = [
         )
     },
     {
+        id: 'm5',
+        navLabel: 'M5 · Access control',
+        status: 'done',
+        heading: 'M5 · Access control',
+        tag: 'a third instance of the same REST boundary fire alarm already established',
+        body: (
+            <>
+                <p>
+                    Same deliberate boundary as the fire panel: access control is its own system,
+                    speaks REST rather than a field protocol, and the gateway polls it the same
+                    shape as everything else. By this milestone that wasn't a new decision — just
+                    applying one already made twice.
+                </p>
+                <div className="table-wrap">
+                    <table className="regmap">
+                        <thead>
+                            <tr>
+                                <th>Door</th>
+                                <th>Required level</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Main Entrance</td>
+                                <td className="mono">1</td>
+                            </tr>
+                            <tr>
+                                <td>Server Room</td>
+                                <td className="mono">2</td>
+                            </tr>
+                            <tr>
+                                <td>Mechanical Room</td>
+                                <td className="mono">3</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p style={{ fontSize: '.86rem', color: 'var(--muted)', marginTop: '-.4rem' }}>
+                    Six cardholders span every outcome worth demoing — a facilities manager with
+                    blanket access, 24/7 security with mid-tier access, a night cleaner capped at
+                    the front door, and day-shift staff who lose access the moment the clock passes
+                    6pm. See <code>docs/access-control-notes.md</code>.
+                </p>
+
+                <div className="concept-grid">
+                    <ConceptCard title="No simulated clock here">
+                        AHU-1 runs an accelerated "sim day" because it has an autonomous loop worth
+                        watching. Access control is purely event-driven — a badge attempt either
+                        happens or it doesn't — so "business hours" just checks the real wall-clock
+                        time.
+                    </ConceptCard>
+                    <ConceptCard title="Five event results">
+                        <code>granted</code>, <code>denied_level</code>,{' '}
+                        <code>denied_schedule</code>, <code>forced</code>, <code>held_open</code> —
+                        the last two raise an alarm point the gateway surfaces but (unlike fire)
+                        doesn't yet act on.
+                    </ConceptCard>
+                </div>
+
+                <FieldNote title="caught before it had the chance to bite">
+                    <p>
+                        <code>AccessControlSystem</code>'s zones are built fresh in{' '}
+                        <code>__post_init__</code> rather than reused from a module-level default
+                        list — written that way from the start this time, because M4's fire panel
+                        had already paid for the shared-mutable-default lesson. The test suite
+                        passed on the first run as a result.
+                    </p>
+                </FieldNote>
+
+                <FieldNote title="the second instance, not the first">
+                    <p>
+                        The fire panel's demo-proxy endpoints in <code>gateway/app/main.py</code>{' '}
+                        were one-off functions; adding access control's gave a second,
+                        near-identical set — exactly the point where generalizing (one{' '}
+                        <code>_proxy()</code> helper, one <code>postJson()</code> on the console
+                        side) stops being premature and starts being the obvious move.
+                    </p>
+                </FieldNote>
+
+                <FlashCard
+                    q="Why check a cardholder's schedule against the real clock instead of giving access control the same accelerated sim-time AHU-1 uses?"
+                    a="Time acceleration exists to make an autonomous loop watchable in a demo. Access control has no loop — it only evaluates a rule at the moment a badge event happens — so there's nothing to accelerate and no reason to fake the clock a human reading the demo would find confusing."
+                />
+            </>
+        )
+    },
+    {
         id: 'later',
-        navLabel: 'M5 – M10 · Rest of the build',
+        navLabel: 'M6 – M10 · Rest of the build',
         status: 'next',
-        heading: 'M5 – M10 · Everything after that',
+        heading: 'M6 – M10 · Everything after that',
         tag: 'one line each, so the shape of the build stays visible',
         body: (
             <div className="teaser-list">
-                <div className="teaser">
-                    <span className="t-id">M5</span>
-                    <div>
-                        <h3>Access control</h3>
-                        <p>Door events, forced/held alarms, access levels and schedules.</p>
-                    </div>
-                </div>
                 <div className="teaser">
                     <span className="t-id">M6</span>
                     <div>

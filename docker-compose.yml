@@ -27,12 +27,14 @@ services:
     ports:
       - "8001:8001"
 
-  # Access control sim (REST/events). Implemented in M5.
+  # Access control sim (REST, same boundary as the fire panel). Implemented in M5.
   access-control:
     build: ./sims/access_control
     networks:
       bas_net:
         ipv4_address: 10.10.0.14
+    ports:
+      - "8002:8002"
 
   # --- Gateway -----------------------------------------------------------
   gateway:

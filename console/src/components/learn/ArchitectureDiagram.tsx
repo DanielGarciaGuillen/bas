@@ -1,6 +1,6 @@
 // Live containers (solid, colored) vs not-yet-built ones (dashed, muted). Update the
 // `live` set here as each milestone ships a new service.
-const LIVE = new Set(['bacnet', 'modbus', 'fire', 'gateway', 'console']);
+const LIVE = new Set(['bacnet', 'modbus', 'fire', 'access', 'gateway', 'console']);
 
 interface Box {
     id: string;
@@ -36,7 +36,14 @@ const BOXES: Box[] = [
         h: 52,
         lines: ['Fire alarm panel', 'REST · drives AHU-1 interlock']
     },
-    { id: 'access', x: 20, y: 218, w: 190, h: 52, lines: ['Access control', '3 doors · M5'] }
+    {
+        id: 'access',
+        x: 20,
+        y: 218,
+        w: 190,
+        h: 52,
+        lines: ['Access control', '3 doors, 6 cardholders · REST']
+    }
 ];
 
 function BoxEl({ box }: { box: Box }) {
@@ -83,7 +90,7 @@ export default function ArchitectureDiagram() {
                 <path d="M210 40 H 420 V 128" stroke="var(--ok)" />
                 <path d="M210 108 H 420 V 128" stroke="var(--ok)" />
                 <path d="M210 176 H 420 V 128" stroke="var(--ok)" />
-                <path d="M210 244 H 420 V 128" strokeDasharray="4 3" />
+                <path d="M210 244 H 420 V 128" stroke="var(--ok)" />
             </g>
 
             <rect
