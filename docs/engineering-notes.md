@@ -413,4 +413,25 @@ repo).
 
 ## M10 — README polish, demo video, final write-up
 
-_TODO after milestone._
+- **Concept:** the last milestone doesn't add a feature — it makes the nine milestones
+  before it legible to someone who didn't watch them get built. A portfolio project that
+  works but can't be understood in two minutes by a hiring manager scrolling a repo hasn't
+  finished its job.
+- **Screenshots taken from a live, state-manipulated run, not a cold default:** every
+  screenshot in the README was captured after actually triggering the condition it shows —
+  the Fire Panel shot has a real zone in ALARM (triggered via the same demo endpoint a
+  user would click), the AHU-1 shot shows the fan genuinely stopped by the interlock in
+  response to that alarm, and the Trends shot is a real kW series accumulated over the
+  run, not a static mock. A screenshot of an idle system proves the UI renders; a
+  screenshot of a triggered interlock proves the system does what the README claims.
+- **The demo script is a shot list, not a script to read:** early draft tried writing
+  word-for-word narration. Rewritten as beats (what's on screen, one sentence of context)
+  because a real screen recording needs room to react to what's actually happening — the
+  PI loop's SAT drift, the poll interval's 2.5s lag — not force a fixed line length onto a
+  live system.
+- **The resume bullets lead with protocol/interlock/control-loop work, not the React
+  console:** Daniel's resume already has 7 years of React/React Native. The bullets that
+  matter here are the ones that wouldn't be true without the BAS-specific work — BACnet's
+  priority array, a real fan-shutdown sequence, a PI loop debugged against two distinct
+  failure modes (integral windup, a bang-bang limit cycle) found only by running the
+  simulation, not by reading the code.

@@ -14,13 +14,21 @@ exposed through a React console.
 
 ## Status
 
-M0–M9 done: Modbus meter, BACnet AHU-1 with a real PI-loop sequence of operation, a fire
-alarm panel whose alarm shuts the AHU down via a BACnet priority override, access control
-with per-door/per-cardholder access decisions, an alarm engine with trend history and work
-orders, and a nine-tab operator console (Overview, AHU-1, Fire Panel, Access, Alarms,
-Trends, Points, Network, Notes). M10 (README polish, demo video, final write-up) is next.
-Design decisions and debugging notes live in the console's **Notes** tab and
-[`docs/engineering-notes.md`](docs/engineering-notes.md).
+**M0–M10 done.** Modbus meter, BACnet AHU-1 with a real PI-loop sequence of operation, a
+fire alarm panel whose alarm shuts the AHU down via a BACnet priority override, access
+control with per-door/per-cardholder access decisions, an alarm engine with trend history
+and work orders, and a nine-tab operator console (Overview, AHU-1, Fire Panel, Access,
+Alarms, Trends, Points, Network, Notes). Design decisions and debugging notes live in the
+console's **Notes** tab and [`docs/engineering-notes.md`](docs/engineering-notes.md); a
+shot-by-shot demo walkthrough is in [`docs/demo-script.md`](docs/demo-script.md).
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Overview](docs/screenshots/overview.png) Overview | ![Fire Panel mid-alarm](docs/screenshots/fire-panel.png) Fire Panel, mid-alarm |
+| ![AHU-1, fan forced off by the interlock](docs/screenshots/ahu1.png) AHU-1, fan forced off by the interlock | ![Alarms + Work Orders](docs/screenshots/alarms.png) Alarms + Work Orders |
+| ![Trends](docs/screenshots/trends.png) Trends | ![Network design](docs/screenshots/network.png) Network design |
 
 ## Running it
 
@@ -57,6 +65,8 @@ One Docker network stands in for what a real site splits across VLANs. Full brea
 - [`docs/access-control-notes.md`](docs/access-control-notes.md) — doors, cardholders, access decisions
 - [`docs/alarm-engine-notes.md`](docs/alarm-engine-notes.md) — alarm rules, lifecycle, work orders
 - [`docs/engineering-notes.md`](docs/engineering-notes.md) — design decisions, debugging notes
+- [`docs/demo-script.md`](docs/demo-script.md) — shot-by-shot demo video script
+- [`docs/linkedin-post.md`](docs/linkedin-post.md) — draft announcement post
 
 ## Tech stack
 
@@ -71,4 +81,15 @@ One Docker network stands in for what a real site splits across VLANs. Full brea
 
 ## Project summary (resume-ready)
 
-_To be filled in at M10._
+- Built a simulated small-office BAS from protocol up — BACnet/IP and Modbus TCP device
+  simulators, a Python/FastAPI gateway normalizing both into one point model with an
+  alarm engine, SQLite trend history, and CMMS-lite work orders, and a React/TypeScript
+  operator console with 9 live views.
+- Implemented a real fire-alarm-to-HVAC interlock using BACnet's priority-array
+  mechanism — a fire alarm forces the AHU's supply fan off and its outside-air damper
+  closed at priority 1, verified to survive and then yield back to the normal schedule's
+  lower-priority writes, matching how a real fan-shutdown sequence works on site.
+- Tuned and debugged a real PI-loop HVAC sequence of operation (supply-air-temperature
+  control, economizer logic, duct static pressure control) against a first-order thermal
+  model, including diagnosing and fixing an integral-windup bug and a bang-bang limit
+  cycle that only showed up running the simulation end-to-end.

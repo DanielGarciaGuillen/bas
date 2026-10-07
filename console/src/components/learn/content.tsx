@@ -37,9 +37,10 @@ export const MODULES: Module[] = [
                         Trends, Points, Network, Notes) — try the demo buttons on the Fire Panel and
                         Access tabs.
                     </ConceptCard>
-                    <ConceptCard title="Up next">
-                        The final write-up — README polish, a demo video script, and the
-                        resume-ready project summary.
+                    <ConceptCard title="All ten milestones done">
+                        M0 through M10 — every module in this list is marked done. The README has
+                        screenshots from a live triggered run, a shot-by-shot demo script, and a
+                        resume-ready summary. See <code>docs/demo-script.md</code>.
                     </ConceptCard>
                     <ConceptCard title="Why one network">
                         A real site segments IT / BAS / security / fire onto separate VLANs (see{' '}
@@ -721,24 +722,45 @@ export const MODULES: Module[] = [
         )
     },
     {
-        id: 'later',
+        id: 'm10',
         navLabel: 'M10 · Final write-up',
-        status: 'next',
-        heading: 'M10 · Everything after that',
-        tag: 'one line, so the shape of the build stays visible',
+        status: 'done',
+        heading: 'M10 · README, screenshots, demo script, resume summary',
+        tag: 'the milestone that makes the other nine legible',
         body: (
-            <div className="teaser-list">
-                <div className="teaser">
-                    <span className="t-id">M10</span>
-                    <div>
-                        <h3>Final write-up</h3>
-                        <p>
-                            README polish, a demo video script, and the resume-ready project
-                            summary.
-                        </p>
-                    </div>
+            <>
+                <p>
+                    The last milestone doesn't add a feature — it makes nine milestones of real work
+                    understandable to someone who didn't watch them get built. A project that works
+                    but can't be understood in two minutes of scrolling a repo hasn't finished its
+                    job.
+                </p>
+                <div className="concept-grid">
+                    <ConceptCard title="Screenshots from a triggered run">
+                        Every README screenshot was captured after actually triggering the condition
+                        it shows — a real zone in ALARM, AHU-1's fan actually stopped by the
+                        interlock, a real kW series. A screenshot of an idle system proves the UI
+                        renders; one of a triggered interlock proves the system does what's claimed.
+                    </ConceptCard>
+                    <ConceptCard title="A shot list, not a script">
+                        The demo script names what's on screen and one sentence of context per beat
+                        — not word-for-word narration. A live system needs room to react to what's
+                        actually happening (the PI loop's drift, the poll interval's lag), not a
+                        fixed line length forced onto it.
+                    </ConceptCard>
+                    <ConceptCard title="Resume bullets lead with the BAS-specific work">
+                        Not the React console — that's seven years of prior experience already on
+                        the resume. The bullets that matter are the ones that wouldn't be true
+                        without this project: BACnet's priority array, a real fan-shutdown sequence,
+                        a PI loop debugged against two distinct failure modes found only by running
+                        the simulation.
+                    </ConceptCard>
                 </div>
-            </div>
+                <FlashCard
+                    q="Why does the README's resume summary lead with the interlock and PI-loop debugging instead of the 9-tab React console?"
+                    a="Because the console is the one part of this project that doesn't need proving — seven years of React/React Native experience already covers that. The bullets worth having are the ones that are new: a fire-alarm-to-HVAC interlock built on BACnet's actual priority-array mechanism, and a control loop debugged against integral windup and a bang-bang limit cycle — failure modes that only showed up by running the simulation end-to-end, not by reading the code."
+                />
+            </>
         )
     }
 ];
