@@ -10,11 +10,13 @@ Panel logic is in panel.py (pure, unit-tested); this file just wires it to FastA
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from panel import (
     Panel,
+    PanelEventKind,
     ResetBlocked,
     acknowledge,
     any_alarm,
@@ -73,7 +75,7 @@ class TriggerBody(BaseModel):
 async def trigger_zone(zone_id: int, body: TriggerBody) -> PanelOut:
     if zone_id not in panel.zones:
         raise HTTPException(status_code=404, detail=f"no such zone: {zone_id}")
-    trigger(panel, zone_id, body.condition)
+    trigger(panel, zone_id, body.condition, datetime.now())
     return _panel_out()
 
 
@@ -81,26 +83,38 @@ async def trigger_zone(zone_id: int, body: TriggerBody) -> PanelOut:
 async def clear_zone(zone_id: int) -> PanelOut:
     if zone_id not in panel.zones:
         raise HTTPException(status_code=404, detail=f"no such zone: {zone_id}")
-    clear_field(panel, zone_id)
+    clear_field(panel, zone_id, datetime.now())
     return _panel_out()
 
 
 @app.post("/panel/acknowledge", response_model=PanelOut)
 async def acknowledge_panel() -> PanelOut:
-    acknowledge(panel)
+    acknowledge(panel, datetime.now())
     return _panel_out()
 
 
 @app.post("/panel/silence", response_model=PanelOut)
 async def silence_panel() -> PanelOut:
-    silence(panel)
+    silence(panel, datetime.now())
     return _panel_out()
 
 
 @app.post("/panel/reset", response_model=PanelOut)
 async def reset_panel() -> PanelOut:
     try:
-        reset(panel)
+        reset(panel, datetime.now())
     except ResetBlocked as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return _panel_out()
+
+
+class PanelEventOut(BaseModel):
+    kind: PanelEventKind
+    zone_id: int | None
+    detail: str
+    timestamp: datetime
+
+
+@app.get("/events", response_model=list[PanelEventOut])
+async def get_events(limit: int = 20) -> list[PanelEventOut]:
+    return [PanelEventOut(**vars(e)) for e in panel.events[-limit:][::-1]]

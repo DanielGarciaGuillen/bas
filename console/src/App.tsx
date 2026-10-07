@@ -1,16 +1,25 @@
 import { useState } from 'react';
 
+import AccessControlPanel from '@/components/AccessControlPanel';
 import AhuPanel from '@/components/AhuPanel';
+import AlarmsPanel from '@/components/AlarmsPanel';
+import FirePanelAnnunciator from '@/components/FirePanelAnnunciator';
 import Learn from '@/components/Learn';
-import Operations from '@/components/Operations';
+import Points from '@/components/Points';
 import Overview from '@/components/Overview';
+import TrendsPanel from '@/components/TrendsPanel';
+import WorkOrdersPanel from '@/components/WorkOrdersPanel';
 
-type Tab = 'overview' | 'ahu' | 'operations' | 'learn';
+type Tab = 'overview' | 'ahu' | 'fire' | 'access' | 'alarms' | 'trends' | 'points' | 'learn';
 
 const TAB_LABEL: Record<Tab, string> = {
     overview: 'Overview',
     ahu: 'AHU-1',
-    operations: 'Operations',
+    fire: 'Fire Panel',
+    access: 'Access',
+    alarms: 'Alarms',
+    trends: 'Trends',
+    points: 'Points',
     learn: 'Build Notes'
 };
 
@@ -41,7 +50,16 @@ export default function App() {
 
             {tab === 'overview' && <Overview />}
             {tab === 'ahu' && <AhuPanel />}
-            {tab === 'operations' && <Operations />}
+            {tab === 'fire' && <FirePanelAnnunciator />}
+            {tab === 'access' && <AccessControlPanel />}
+            {tab === 'alarms' && (
+                <>
+                    <AlarmsPanel />
+                    <WorkOrdersPanel />
+                </>
+            )}
+            {tab === 'trends' && <TrendsPanel />}
+            {tab === 'points' && <Points />}
             {tab === 'learn' && <Learn />}
         </div>
     );

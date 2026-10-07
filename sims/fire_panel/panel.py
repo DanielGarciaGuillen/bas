@@ -8,9 +8,11 @@ plain-English version, and the disclaimer there about real fire alarm systems.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Literal
 
 ZoneCondition = Literal["normal", "alarm", "trouble", "supervisory"]
+PanelEventKind = Literal["trigger", "clear", "acknowledge", "silence", "reset"]
 
 
 @dataclass
@@ -26,10 +28,19 @@ class Zone:
 
 
 @dataclass
+class PanelEvent:
+    kind: PanelEventKind
+    zone_id: int | None
+    detail: str
+    timestamp: datetime
+
+
+@dataclass
 class Panel:
     zones: dict[int, Zone] = field(default_factory=dict)
     acknowledged: bool = False
     silenced: bool = False
+    events: list[PanelEvent] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if not self.zones:
@@ -70,7 +81,7 @@ def any_alarm(panel: Panel) -> bool:
     return any(z.condition == "alarm" for z in panel.zones.values())
 
 
-def trigger(panel: Panel, zone_id: int, condition: ZoneCondition) -> Zone:
+def trigger(panel: Panel, zone_id: int, condition: ZoneCondition, now: datetime) -> Zone:
     if condition == "normal":
         raise ValueError("use clear_field()/reset() to return a zone to normal")
     zone = panel.zones[zone_id]
@@ -79,24 +90,28 @@ def trigger(panel: Panel, zone_id: int, condition: ZoneCondition) -> Zone:
     # a new condition demands fresh attention — don't let it hide behind an old ack
     panel.acknowledged = False
     panel.silenced = False
+    panel.events.append(PanelEvent("trigger", zone_id, f"{zone.name}: {condition}", now))
     return zone
 
 
-def clear_field(panel: Panel, zone_id: int) -> Zone:
+def clear_field(panel: Panel, zone_id: int, now: datetime) -> Zone:
     """The field device itself has returned to normal (smoke cleared, station
     restored). The panel still shows the condition until an operator resets it —
     clearing the field and resetting the panel are deliberately separate actions."""
     zone = panel.zones[zone_id]
     zone.field_cleared = True
+    panel.events.append(PanelEvent("clear", zone_id, f"{zone.name}: field cleared", now))
     return zone
 
 
-def acknowledge(panel: Panel) -> None:
+def acknowledge(panel: Panel, now: datetime) -> None:
     panel.acknowledged = True
+    panel.events.append(PanelEvent("acknowledge", None, "Panel acknowledged", now))
 
 
-def silence(panel: Panel) -> None:
+def silence(panel: Panel, now: datetime) -> None:
     panel.silenced = True
+    panel.events.append(PanelEvent("silence", None, "Panel silenced", now))
 
 
 class ResetBlocked(Exception):
@@ -106,7 +121,7 @@ class ResetBlocked(Exception):
         super().__init__(f"cannot reset while still active: {names}")
 
 
-def reset(panel: Panel) -> None:
+def reset(panel: Panel, now: datetime) -> None:
     blocking = [z for z in panel.zones.values() if z.condition != "normal" and not z.field_cleared]
     if blocking:
         raise ResetBlocked(blocking)
@@ -115,3 +130,4 @@ def reset(panel: Panel) -> None:
         zone.field_cleared = True
     panel.acknowledged = False
     panel.silenced = False
+    panel.events.append(PanelEvent("reset", None, "Panel reset", now))

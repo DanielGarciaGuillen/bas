@@ -33,12 +33,13 @@ export const MODULES: Module[] = [
                         Modbus meter, BACnet AHU-1 with a real sequence of operation, a fire panel
                         whose alarm can shut the AHU down, access control with per-door,
                         per-cardholder decisions, an alarm engine with trend history and work
-                        orders, and a four-tab console (Overview, AHU-1, Operations, Notes) — try
-                        the demo buttons on the Operations tab.
+                        orders, and an eight-tab console (Overview, AHU-1, Fire Panel, Access,
+                        Alarms, Trends, Points, Notes) — try the demo buttons on the Fire Panel and
+                        Access tabs.
                     </ConceptCard>
                     <ConceptCard title="Up next">
-                        Console depth — a dedicated alarms console, fire annunciator, access log,
-                        trend charts, and the network design page.
+                        The network design page — rendering the VLAN/IP plan from{' '}
+                        <code>docs/network-design.md</code> as a console view.
                     </ConceptCard>
                     <ConceptCard title="Why one network">
                         A real site segments IT / BAS / security / fire onto separate VLANs (see{' '}
@@ -613,30 +614,84 @@ export const MODULES: Module[] = [
         )
     },
     {
+        id: 'm8',
+        navLabel: 'M8 · Console depth',
+        status: 'done',
+        heading: 'M8 · Alarms console, fire annunciator, access log, trends',
+        tag: 'one flat Operations page becomes five dedicated views',
+        body: (
+            <>
+                <p>
+                    M7 built the shell; M8 gives each system the dedicated view PLAN.md describes
+                    instead of one shared Operations page: a sortable alarms table, a real fire
+                    panel annunciator, an access control event log, and a trend chart.
+                </p>
+                <div className="concept-grid">
+                    <ConceptCard title="A second event log, same shape as the first">
+                        The fire panel never had an event history the way access control's{' '}
+                        <code>access.py</code> always did. Adding{' '}
+                        <code>Panel.events: list[PanelEvent]</code> copied that exact shape —
+                        recognizing a second instance of a pattern beats inventing a new one.
+                    </ConceptCard>
+                    <ConceptCard title="Acknowledged/silenced aren't points">
+                        The point model represents sensor/measured state. Whether an operator has
+                        acknowledged the panel is panel UI state, not a point — so{' '}
+                        <code>GET /fire-panel/panel</code> proxies the sim's full state directly
+                        instead of forcing two booleans into the point shape.
+                    </ConceptCard>
+                    <ConceptCard title="A hand-rolled chart, not a library">
+                        One series, a filled area, min/max labels, an emphasized last point — a few
+                        dozen lines of SVG with no new dependency. A charting library earns its
+                        place once there's a real need for multi-series overlays or zoom; nothing
+                        here needs that yet.
+                    </ConceptCard>
+                </div>
+
+                <FieldNote title="a bug only a real browser caught">
+                    <p>
+                        The gateway's <code>GET /history/&#123;point_id&#125;</code> returns each
+                        sample as <code>&#123;value, timestamp&#125;</code>, but the console's type
+                        was written against a guessed field name, <code>recorded_at</code>. Every
+                        Python and console unit test passed — none of them touch the real JSON
+                        crossing the wire — and the trend chart silently rendered as a flat{' '}
+                        <code>NaN</code> path. Only opening the Trends tab in an actual browser and
+                        reading the console surfaced it. Typing a fetch response isn't the same
+                        claim as verifying it.
+                    </p>
+                </FieldNote>
+
+                <FlashCard
+                    q="Why keep Work Orders on the Alarms tab instead of giving it the separate page PLAN.md describes?"
+                    a="A work order's only real action right now is a status dropdown — there's no detail view substantial enough to earn its own page yet. Work orders are also created from alarms often enough that keeping them on one tab keeps that cause-and-effect visible without a tab switch. A dedicated page is the obvious next step once work orders grow real detail (notes, history, assignment)."
+                />
+            </>
+        )
+    },
+    {
         id: 'later',
-        navLabel: 'M8 – M10 · Rest of the build',
+        navLabel: 'M9 – M10 · Rest of the build',
         status: 'next',
-        heading: 'M8 – M10 · Everything after that',
+        heading: 'M9 – M10 · Everything after that',
         tag: 'one line each, so the shape of the build stays visible',
         body: (
             <div className="teaser-list">
                 <div className="teaser">
-                    <span className="t-id">M8</span>
+                    <span className="t-id">M9</span>
                     <div>
-                        <h3>Console depth</h3>
+                        <h3>Network page</h3>
                         <p>
-                            A dedicated alarms console, fire annunciator, access log, and trend
-                            charts — deeper views than Operations' flat table.
+                            The network design doc (VLANs, IP plan, firewall rules) rendered as a
+                            console page, closing the Network+ loop.
                         </p>
                     </div>
                 </div>
                 <div className="teaser">
-                    <span className="t-id">M9+</span>
+                    <span className="t-id">M10</span>
                     <div>
-                        <h3>Network page, final write-up</h3>
+                        <h3>Final write-up</h3>
                         <p>
-                            The network design doc rendered as a page, demo video, and the
-                            resume-ready project summary.
+                            README polish, a demo video script, and the resume-ready project
+                            summary.
                         </p>
                     </div>
                 </div>

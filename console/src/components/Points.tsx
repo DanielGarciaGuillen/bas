@@ -1,9 +1,5 @@
 import { useEffect, useState } from 'react';
 
-import AccessControlControls from '@/components/AccessControlControls';
-import AlarmsPanel from '@/components/AlarmsPanel';
-import FirePanelControls from '@/components/FirePanelControls';
-import WorkOrdersPanel from '@/components/WorkOrdersPanel';
 import { fetchPoints, type Point } from '@/lib/api';
 import { formatValue, protocolFor } from '@/lib/points';
 
@@ -15,7 +11,7 @@ const STATUS_STYLE: Record<Point['status'], { bg: string; fg: string; label: str
     stale: { bg: 'var(--accent-soft)', fg: 'var(--accent)', label: 'STALE' }
 };
 
-export default function Operations() {
+export default function Points() {
     const [points, setPoints] = useState<Point[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -103,11 +99,6 @@ export default function Operations() {
                         })}
                 </tbody>
             </table>
-
-            <FirePanelControls />
-            <AccessControlControls />
-            <AlarmsPanel />
-            <WorkOrdersPanel />
         </>
     );
 }

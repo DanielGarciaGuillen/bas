@@ -141,6 +141,20 @@ async def reset_fire_panel() -> dict:
     return await _proxy("Fire panel", fire_panel.FIRE_PANEL_URL, "POST", "/panel/reset")
 
 
+@app.get("/fire-panel/panel")
+async def get_fire_panel() -> dict:
+    # Acknowledged/silenced are panel UI state, not a sensor reading — not worth
+    # threading through the point model for two booleans the annunciator needs directly.
+    return await _proxy("Fire panel", fire_panel.FIRE_PANEL_URL, "GET", "/panel")
+
+
+@app.get("/fire-panel/events")
+async def list_fire_panel_events(limit: int = 20) -> list:
+    return await _proxy(
+        "Fire panel", fire_panel.FIRE_PANEL_URL, "GET", "/events", params={"limit": limit}
+    )
+
+
 # --- Access control -------------------------------------------------------------------
 
 
@@ -186,6 +200,17 @@ async def clear_door(door_id: int) -> dict:
 @app.get("/access-control/cardholders")
 async def list_cardholders() -> dict:
     return await _proxy("Access control", access_control.ACCESS_CONTROL_URL, "GET", "/state")
+
+
+@app.get("/access-control/events")
+async def list_access_events(limit: int = 20) -> list:
+    return await _proxy(
+        "Access control",
+        access_control.ACCESS_CONTROL_URL,
+        "GET",
+        "/events",
+        params={"limit": limit},
+    )
 
 
 # --- Alarms --------------------------------------------------------------------------
