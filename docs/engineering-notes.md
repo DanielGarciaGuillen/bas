@@ -597,3 +597,31 @@ sequence-of-operation bug hides in, and it was previously covered by nothing.
   in Docker and confirmed `GET /points` shows AHU-1 converging toward its SAT setpoint with
   the OA damper modulating exactly as before the move — the refactor changed where the
   code lives, not what it does.
+
+## Post-M10 — strategic backlog, issue #18: declarative proxy binding
+
+`gateway/app/main.py` has 13 routes that are pure pass-throughs to the fire panel or
+access control sim, all already funneling through one `_proxy()` helper — but the
+service name and base URL (`"Fire panel", fire_panel.FIRE_PANEL_URL`,
+`"Access control", access_control.ACCESS_CONTROL_URL`) were retyped as positional
+arguments at every one of those 13 call sites.
+
+- **`functools.partial` binds each service once** (`fire_panel_proxy`,
+  `access_control_proxy`), not a generic row-based route table. The issue's own framing
+  called for a "declarative table," but the 13 routes have genuinely different
+  signatures — path params, a request body needing a field rename (`TriggerZoneBody` →
+  `{"condition": ...}`), query params, one route proxying to a *different* path than its
+  own name suggests (`GET /access-control/cardholders` → sim's `/state`) — so a fully
+  generic table would need to re-invent per-route body/path/query handling FastAPI
+  already gives every individually-declared route for free. `partial` closes the actual
+  duplication (the service/URL pair) without losing that.
+- **Each route stays its own `@app.get`/`@app.post` declaration, on purpose:** the
+  explicit list is functionally an allowlist — only these specific sim operations are
+  reachable from the console — and collapsing it into a generic `{path:path}` forwarder
+  would quietly turn that allowlist into a pass-everything proxy. The decision recorded
+  in the GitHub issue (declarative binding yes, catch-all forwarder no) is the one that
+  shipped.
+- **Verified live:** cold-rebuilt `gateway` + `fire-panel` + `access-control`, then
+  curled all 13 routes individually, including the one with a mismatched path
+  (`/access-control/cardholders` → `/state`) and a deliberate 404 to confirm the error
+  `detail` still passes through unchanged.

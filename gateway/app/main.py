@@ -12,6 +12,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+from functools import partial
 from typing import Literal
 
 import httpx
@@ -90,7 +91,17 @@ async def write_ahu1_static_pressure_setpoint(body: SetpointWrite) -> dict:
 
 # --- Simulators with a demo-control REST API: the console only ever talks to the
 # gateway, never to a sim directly (same rule as everything else) — these just proxy
-# through, so there's one generic proxy helper rather than one per sim. ----------------
+# through, so there's one generic proxy helper rather than one per sim.
+#
+# Each route below stays its own `@app.{method}` declaration — not a generic
+# `{path:path}` catch-all — on purpose: the explicit list is functionally an allowlist
+# (only these specific sim operations are reachable from the console), and keeping each
+# route named gets FastAPI's per-route request validation and OpenAPI docs for free.
+# What's declarative is the *binding*: `fire_panel_proxy`/`access_control_proxy` below
+# are `_proxy` pre-bound to one service's name and base URL via `partial`, so neither
+# gets retyped at each of this file's 13 call sites the way they used to (and a
+# mismatched pair — right URL, wrong name, or vice versa — can no longer happen; there's
+# only one of each left to get wrong). ------------------------------------------------
 
 
 async def _proxy(service_name: str, base_url: str, method: str, path: str, **kwargs) -> dict:
@@ -106,53 +117,51 @@ async def _proxy(service_name: str, base_url: str, method: str, path: str, **kwa
     return resp.json()
 
 
+fire_panel_proxy = partial(_proxy, "Fire panel", fire_panel.FIRE_PANEL_URL)
+access_control_proxy = partial(_proxy, "Access control", access_control.ACCESS_CONTROL_URL)
+
+
 class TriggerZoneBody(BaseModel):
     condition: Literal["alarm", "trouble", "supervisory"]
 
 
 @app.post("/fire-panel/zones/{zone_id}/trigger")
 async def trigger_fire_zone(zone_id: int, body: TriggerZoneBody) -> dict:
-    return await _proxy(
-        "Fire panel",
-        fire_panel.FIRE_PANEL_URL,
-        "POST",
-        f"/zones/{zone_id}/trigger",
-        json={"condition": body.condition},
+    return await fire_panel_proxy(
+        "POST", f"/zones/{zone_id}/trigger", json={"condition": body.condition}
     )
 
 
 @app.post("/fire-panel/zones/{zone_id}/clear")
 async def clear_fire_zone(zone_id: int) -> dict:
-    return await _proxy("Fire panel", fire_panel.FIRE_PANEL_URL, "POST", f"/zones/{zone_id}/clear")
+    return await fire_panel_proxy("POST", f"/zones/{zone_id}/clear")
 
 
 @app.post("/fire-panel/acknowledge")
 async def acknowledge_fire_panel() -> dict:
-    return await _proxy("Fire panel", fire_panel.FIRE_PANEL_URL, "POST", "/panel/acknowledge")
+    return await fire_panel_proxy("POST", "/panel/acknowledge")
 
 
 @app.post("/fire-panel/silence")
 async def silence_fire_panel() -> dict:
-    return await _proxy("Fire panel", fire_panel.FIRE_PANEL_URL, "POST", "/panel/silence")
+    return await fire_panel_proxy("POST", "/panel/silence")
 
 
 @app.post("/fire-panel/reset")
 async def reset_fire_panel() -> dict:
-    return await _proxy("Fire panel", fire_panel.FIRE_PANEL_URL, "POST", "/panel/reset")
+    return await fire_panel_proxy("POST", "/panel/reset")
 
 
 @app.get("/fire-panel/panel")
 async def get_fire_panel() -> dict:
     # Acknowledged/silenced are panel UI state, not a sensor reading — not worth
     # threading through the point model for two booleans the annunciator needs directly.
-    return await _proxy("Fire panel", fire_panel.FIRE_PANEL_URL, "GET", "/panel")
+    return await fire_panel_proxy("GET", "/panel")
 
 
 @app.get("/fire-panel/events")
 async def list_fire_panel_events(limit: int = 20) -> list:
-    return await _proxy(
-        "Fire panel", fire_panel.FIRE_PANEL_URL, "GET", "/events", params={"limit": limit}
-    )
+    return await fire_panel_proxy("GET", "/events", params={"limit": limit})
 
 
 # --- Access control -------------------------------------------------------------------
@@ -164,53 +173,34 @@ class BadgeBody(BaseModel):
 
 @app.post("/access-control/doors/{door_id}/badge")
 async def badge_door(door_id: int, body: BadgeBody) -> dict:
-    return await _proxy(
-        "Access control",
-        access_control.ACCESS_CONTROL_URL,
-        "POST",
-        f"/doors/{door_id}/badge",
-        json={"cardholder_id": body.cardholder_id},
+    return await access_control_proxy(
+        "POST", f"/doors/{door_id}/badge", json={"cardholder_id": body.cardholder_id}
     )
 
 
 @app.post("/access-control/doors/{door_id}/force")
 async def force_door(door_id: int) -> dict:
-    return await _proxy(
-        "Access control", access_control.ACCESS_CONTROL_URL, "POST", f"/doors/{door_id}/force"
-    )
+    return await access_control_proxy("POST", f"/doors/{door_id}/force")
 
 
 @app.post("/access-control/doors/{door_id}/hold-open")
 async def hold_open_door(door_id: int) -> dict:
-    return await _proxy(
-        "Access control",
-        access_control.ACCESS_CONTROL_URL,
-        "POST",
-        f"/doors/{door_id}/hold-open",
-    )
+    return await access_control_proxy("POST", f"/doors/{door_id}/hold-open")
 
 
 @app.post("/access-control/doors/{door_id}/clear")
 async def clear_door(door_id: int) -> dict:
-    return await _proxy(
-        "Access control", access_control.ACCESS_CONTROL_URL, "POST", f"/doors/{door_id}/clear"
-    )
+    return await access_control_proxy("POST", f"/doors/{door_id}/clear")
 
 
 @app.get("/access-control/cardholders")
 async def list_cardholders() -> dict:
-    return await _proxy("Access control", access_control.ACCESS_CONTROL_URL, "GET", "/state")
+    return await access_control_proxy("GET", "/state")
 
 
 @app.get("/access-control/events")
 async def list_access_events(limit: int = 20) -> list:
-    return await _proxy(
-        "Access control",
-        access_control.ACCESS_CONTROL_URL,
-        "GET",
-        "/events",
-        params={"limit": limit},
-    )
+    return await access_control_proxy("GET", "/events", params={"limit": limit})
 
 
 # --- Alarms --------------------------------------------------------------------------
