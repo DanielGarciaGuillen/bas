@@ -15,7 +15,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import random
 
 from bacpypes3.basetypes import BinaryPV
 from bacpypes3.ipv4.app import NormalApplication
@@ -24,25 +23,7 @@ from bacpypes3.local.binary import BinaryInputObject, BinaryOutputObject
 from bacpypes3.local.device import DeviceObject
 from bacpypes3.local.multistate import MultiStateValueObject
 from bacpypes3.pdu import IPv4Address
-from control import (
-    ACTUATOR_SLEW_PCT_PER_TICK,
-    COIL_MAX_DELTA_C,
-    FAN_PID_KI,
-    FAN_PID_KP,
-    OA_DAMPER_MIN_PCT,
-    SAT_PID_KI,
-    SAT_PID_KP,
-    SAT_RESPONSE_RATE,
-    PIController,
-    economizer_oa_damper_pct,
-    fan_curve_pressure_inwc,
-    mixed_air_temp_c,
-    outside_air_temp_c,
-    ramp_toward,
-    schedule_mode,
-    split_range_valves,
-    step_return_air_temp_c,
-)
+from control import Ahu1Plant
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("bacnet_devices")
@@ -73,77 +54,6 @@ OCCUPANCY_MODES: list[tuple[str, str]] = [
 ]
 OCCUPANCY_STATE_TEXT = [label for _key, label in OCCUPANCY_MODES]
 MODE_TO_STATE_INDEX = {key: index for index, (key, _label) in enumerate(OCCUPANCY_MODES, start=1)}
-
-
-class Ahu1Plant:
-    """Everything the sequence of operation needs to remember between ticks.
-
-    All the actual decisions are the pure functions in control.py — this class only
-    holds state across ticks and is the thing main() advances once per update.
-    """
-
-    def __init__(self) -> None:
-        self.sim_seconds = SIM_START_HOUR * 3600.0
-        self.sat_c = 14.0
-        self.rat_c = 22.0
-        self.oa_damper_pct = OA_DAMPER_MIN_PCT
-        self.fan_speed_pct = 0.0
-        self.pressure_inwc = 0.0
-        self.fan_curve_disturbance = 1.0
-        self.sat_pid = PIController(
-            kp=SAT_PID_KP, ki=SAT_PID_KI, output_min=-100.0, output_max=100.0
-        )
-        self.fan_pid = PIController(kp=FAN_PID_KP, ki=FAN_PID_KI, output_min=0.0, output_max=100.0)
-
-    def step(self, dt_s: float, sat_setpoint_c: float, pressure_setpoint_inwc: float) -> dict:
-        self.sim_seconds += dt_s * TIME_ACCEL_X
-        hour_of_day = (self.sim_seconds / 3600.0) % 24.0
-        mode = schedule_mode(hour_of_day)
-        fan_running = mode in ("occupied", "warmup")
-        oat_c = outside_air_temp_c(hour_of_day)
-
-        self.fan_curve_disturbance = max(
-            0.85, min(1.15, self.fan_curve_disturbance + random.uniform(-0.01, 0.01))
-        )
-        self.rat_c = step_return_air_temp_c(
-            self.rat_c, self.sat_c, occupied=(mode == "occupied"), dt_s=dt_s
-        )
-
-        if fan_running:
-            sat_error = sat_setpoint_c - self.sat_c
-            net = self.sat_pid.step(sat_error, dt_s)
-            heating_pct, cooling_pct = split_range_valves(net)
-            oa_target = economizer_oa_damper_pct(oat_c, self.rat_c, fan_running, cooling_pct)
-        else:
-            self.sat_pid.reset()
-            heating_pct, cooling_pct, oa_target = 0.0, 0.0, 0.0
-
-        self.oa_damper_pct = ramp_toward(self.oa_damper_pct, oa_target, ACTUATOR_SLEW_PCT_PER_TICK)
-        mixed_c = mixed_air_temp_c(oat_c, self.rat_c, self.oa_damper_pct)
-        coil_effect_c = (
-            heating_pct / 100.0 * COIL_MAX_DELTA_C - cooling_pct / 100.0 * COIL_MAX_DELTA_C
-        )
-        sat_target_c = mixed_c + coil_effect_c if fan_running else self.rat_c
-        self.sat_c += (sat_target_c - self.sat_c) * SAT_RESPONSE_RATE
-
-        if fan_running:
-            pressure_error = pressure_setpoint_inwc - self.pressure_inwc
-            fan_target_pct = self.fan_pid.step(pressure_error, dt_s)
-        else:
-            self.fan_pid.reset()
-            fan_target_pct = 0.0
-        self.fan_speed_pct = ramp_toward(
-            self.fan_speed_pct, fan_target_pct, ACTUATOR_SLEW_PCT_PER_TICK
-        )
-        self.pressure_inwc = fan_curve_pressure_inwc(self.fan_speed_pct, self.fan_curve_disturbance)
-
-        return {
-            "mode": mode,
-            "fan_running": fan_running,
-            "oat_c": oat_c,
-            "heating_pct": heating_pct,
-            "cooling_pct": cooling_pct,
-        }
 
 
 def build_device() -> tuple[NormalApplication, dict]:
@@ -288,7 +198,7 @@ def build_device() -> tuple[NormalApplication, dict]:
 
 
 async def update_ahu1(objects: dict) -> None:
-    plant = Ahu1Plant()
+    plant = Ahu1Plant(time_accel_x=TIME_ACCEL_X, sim_start_hour=SIM_START_HOUR)
     while True:
         await asyncio.sleep(UPDATE_INTERVAL_S)
 
