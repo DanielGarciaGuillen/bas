@@ -1,4 +1,5 @@
 import math
+import random
 
 from control import (
     ACTUATOR_SLEW_PCT_PER_TICK,
@@ -10,6 +11,7 @@ from control import (
     SAT_PID_KI,
     SAT_PID_KP,
     SAT_RESPONSE_RATE,
+    Ahu1Plant,
     PIController,
     economizer_oa_damper_pct,
     fan_curve_pressure_inwc,
@@ -161,3 +163,53 @@ def test_pi_controller_respects_output_bounds():
     assert pid.step(error=50.0, dt_s=1.0) == 100.0
     pid2 = PIController(kp=1000.0, ki=1000.0, output_min=0.0, output_max=100.0)
     assert pid2.step(error=-50.0, dt_s=1.0) == 0.0
+
+
+# --- Ahu1Plant: the sequence-of-operation orchestration main.py used to hold untested --
+
+
+def test_plant_starts_in_warmup_at_the_default_sim_start_hour():
+    # sim_start_hour=7.5 falls inside schedule_mode's warmup window (7.0-8.0).
+    plant = Ahu1Plant(rng=random.Random(1))
+    result = plant.step(dt_s=0.001, sat_setpoint_c=21.0, pressure_setpoint_inwc=1.0)
+    assert result["mode"] == "warmup"
+    assert result["fan_running"] is True
+
+
+def test_plant_fan_stops_and_pid_integrals_reset_when_unoccupied():
+    plant = Ahu1Plant(sim_start_hour=22.0, rng=random.Random(1))  # 10pm: unoccupied
+    # Run the loop up first so the PID integrals accumulate something to reset.
+    plant.sat_pid._integral = 50.0
+    plant.fan_pid._integral = 50.0
+    result = plant.step(dt_s=2.0, sat_setpoint_c=21.0, pressure_setpoint_inwc=1.0)
+    assert result["mode"] == "unoccupied"
+    assert result["fan_running"] is False
+    assert result["heating_pct"] == 0.0
+    assert result["cooling_pct"] == 0.0
+    assert plant.sat_pid._integral == 0.0
+    assert plant.fan_pid._integral == 0.0
+
+
+def test_time_accel_x_is_injected_not_hardcoded():
+    # A real day (24h = 86400s) compressed into 10 ticks requires an accel factor near
+    # 86400/10 — proves the sequence's clock speed is a constructor parameter, not the
+    # module-level constant main.py used to read directly off the environment.
+    fast_plant = Ahu1Plant(time_accel_x=8640.0, sim_start_hour=0.0, rng=random.Random(1))
+    for _ in range(10):
+        fast_plant.step(dt_s=1.0, sat_setpoint_c=21.0, pressure_setpoint_inwc=1.0)
+    assert math.isclose(fast_plant.sim_seconds, 86400.0, rel_tol=1e-9)
+
+    slow_plant = Ahu1Plant(time_accel_x=1.0, sim_start_hour=0.0, rng=random.Random(1))
+    for _ in range(10):
+        slow_plant.step(dt_s=1.0, sat_setpoint_c=21.0, pressure_setpoint_inwc=1.0)
+    assert slow_plant.sim_seconds == 10.0
+
+
+def test_plant_fan_curve_noise_is_deterministic_given_the_same_rng_seed():
+    plant_a = Ahu1Plant(rng=random.Random(42))
+    plant_b = Ahu1Plant(rng=random.Random(42))
+    for _ in range(50):
+        plant_a.step(dt_s=2.0, sat_setpoint_c=21.0, pressure_setpoint_inwc=1.0)
+        plant_b.step(dt_s=2.0, sat_setpoint_c=21.0, pressure_setpoint_inwc=1.0)
+    assert plant_a.fan_curve_disturbance == plant_b.fan_curve_disturbance
+    assert plant_a.sat_c == plant_b.sat_c

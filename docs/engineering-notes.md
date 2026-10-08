@@ -565,3 +565,35 @@ exercise the exact code paths that changed.
   `alarm-engine-notes.md` rather than leaving a confident-but-wrong statement in the repo.
   The lesson generalizes past this one rule: an "obviously true" claim about what code can
   or can't do is worth checking against a live run, not just reasoning from reading it.
+
+## Post-M10 — strategic backlog, issue #19: Ahu1Plant moved into control.py
+
+The cheapest item in the strategic backlog (filed as GitHub issues #14-#22 alongside the
+tactical pass). `Ahu1Plant` — the class holding sequence-of-operation state across ticks —
+lived in `sims/bacnet_devices/main.py`, outside the pure/tested module, despite its own
+docstring claiming "all the actual decisions are the pure functions in control.py." That
+wasn't true of `step()`'s own branching (which PI loop resets when the fan isn't running,
+how the mixed-air/coil-effect/thermal-lag chain composes) — exactly the kind of logic a
+sequence-of-operation bug hides in, and it was previously covered by nothing.
+
+- **Injected `time_accel_x` and `rng` instead of reading them from `main.py`'s
+  module-level constants:** the class used to reach out to `TIME_ACCEL_X` and the bare
+  `random` module directly, which is exactly why it couldn't be unit-tested before —
+  nothing could run a fast, deterministic sim day in a test. Now both are constructor
+  parameters with the same defaults, so `main.py`'s construction call
+  (`Ahu1Plant(time_accel_x=TIME_ACCEL_X, sim_start_hour=SIM_START_HOUR)`) is unchanged in
+  behavior and `test_control.py` can pass `rng=random.Random(42)` for determinism and an
+  extreme `time_accel_x` to compress a real day into 10 ticks.
+- **`main.py` dropped from ~343 to ~287 lines and lost every control-logic import** — it's
+  now genuinely just BACnet object wiring and the asyncio loop, matching what its own
+  docstring already claimed about the file's job.
+- **Coverage moved from "0% on the one file with real decision logic in it" to 100% on
+  `control.py`** — `sims/bacnet_devices/tests/test_control.py` already existed at 99%
+  coverage before this, so this was the cheapest item in the backlog specifically because
+  the test harness didn't need to be built, just extended. 4 new tests: warmup-at-startup,
+  fan-stop-resets-both-PID-integrals, the injected-not-hardcoded accel factor, and
+  deterministic noise given a seeded RNG.
+- **Verified live, not just via the test suite:** cold-rebuilt `bacnet-devices` + `gateway`
+  in Docker and confirmed `GET /points` shows AHU-1 converging toward its SAT setpoint with
+  the OA damper modulating exactly as before the move — the refactor changed where the
+  code lives, not what it does.
