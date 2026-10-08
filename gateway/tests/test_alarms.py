@@ -95,6 +95,23 @@ def test_forced_door_raises_priority_2_alarm():
     assert "Server Room" in alarm.message
 
 
+def test_forced_door_beyond_the_default_three_still_raises_an_alarm():
+    # Regression for a hardcoded `(1, 2, 3)` door range that silently skipped any door
+    # past the third — the rule now scans points by key prefix instead of a fixed count.
+    engine = AlarmEngine()
+    forced = base_points(
+        **{
+            "access-control.door4": point(
+                "access-control.door4", "access-control", "Loading Dock", "FORCED"
+            )
+        }
+    )
+    engine.evaluate(forced, T0)
+    [alarm] = engine.active_alarms()
+    assert alarm.priority == 2
+    assert "Loading Dock" in alarm.message
+
+
 def test_fan_command_status_mismatch_raises_alarm():
     engine = AlarmEngine()
     mismatched = base_points(

@@ -13,7 +13,7 @@ import os
 
 import httpx
 
-from .state import points
+from .state import fault_device, fault_point, set_point
 
 log = logging.getLogger("gateway.access_control")
 
@@ -36,32 +36,18 @@ async def poll_access_control_forever() -> None:
 
                 for door in state["doors"]:
                     point_id = f"access-control.door{door['id']}"
-                    points[point_id] = {
-                        "id": point_id,
-                        "device": "access-control",
-                        "name": door["name"],
-                        "value": door["state"].upper(),
-                        "units": None,
-                        "status": "ok",
-                    }
+                    set_point(point_id, "access-control", door["name"], door["state"].upper())
 
                 last_event_value = latest_events[0]["reason"] if latest_events else "—"
-                points["access-control.last_event"] = {
-                    "id": "access-control.last_event",
-                    "device": "access-control",
-                    "name": "Last Event",
-                    "value": last_event_value,
-                    "units": None,
-                    "status": "ok",
-                }
+                set_point(
+                    "access-control.last_event", "access-control", "Last Event", last_event_value
+                )
             except Exception:
                 log.exception("Failed to poll access control at %s", ACCESS_CONTROL_URL)
-                points["access-control.last_event"] = {
-                    "id": "access-control.last_event",
-                    "device": "access-control",
-                    "name": "Last Event",
-                    "value": None,
-                    "units": None,
-                    "status": "fault",
-                }
+                # Faults every door point already known (previously only last_event was
+                # faulted, leaving doors showing a stale value tagged status "ok" through
+                # an outage) plus last_event explicitly, so a comms failure is visible
+                # from the very first failed poll even before any door has ever been seen.
+                fault_device("access-control")
+                fault_point("access-control.last_event", "access-control", "Last Event")
             await asyncio.sleep(POLL_INTERVAL_S)
