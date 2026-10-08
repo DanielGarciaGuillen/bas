@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
-
 import { fetchPoints, type Point } from '@/lib/api';
 import { formatValue, protocolFor } from '@/lib/points';
+import { usePolledResource } from '@/lib/usePolledResource';
 
 const POLL_INTERVAL_MS = 2500;
 
@@ -11,35 +10,17 @@ const STATUS_STYLE: Record<Point['status'], { bg: string; fg: string; label: str
     stale: { bg: 'var(--accent-soft)', fg: 'var(--accent)', label: 'STALE' }
 };
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+
 export default function Points() {
-    const [points, setPoints] = useState<Point[]>([]);
-    const [error, setError] = useState<string | null>(null);
-    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-
-        async function poll() {
-            try {
-                const next = await fetchPoints();
-                if (cancelled) return;
-                setPoints(next);
-                setError(null);
-                setLastUpdated(new Date());
-            } catch {
-                if (cancelled) return;
-                const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
-                setError(`Can't reach the gateway at ${base}`);
-            }
-        }
-
-        poll();
-        const id = setInterval(poll, POLL_INTERVAL_MS);
-        return () => {
-            cancelled = true;
-            clearInterval(id);
-        };
-    }, []);
+    const {
+        data: points,
+        error,
+        updatedAt
+    } = usePolledResource<Point[]>(fetchPoints, [], {
+        intervalMs: POLL_INTERVAL_MS,
+        errorMessage: `Can't reach the gateway at ${API_BASE_URL}`
+    });
 
     const okCount = points.filter((p) => p.status === 'ok').length;
     const faultCount = points.filter((p) => p.status === 'fault').length;
@@ -50,7 +31,7 @@ export default function Points() {
                 <span className="count ok">{okCount} ok</span>
                 {faultCount > 0 && <span className="count fault">{faultCount} fault</span>}
                 <span className="updated">
-                    {lastUpdated ? `updated ${lastUpdated.toLocaleTimeString()}` : 'connecting…'}
+                    {updatedAt ? `updated ${updatedAt.toLocaleTimeString()}` : 'connecting…'}
                 </span>
             </div>
 

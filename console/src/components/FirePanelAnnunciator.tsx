@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import FirePanelControls from '@/components/FirePanelControls';
 import {
@@ -10,8 +10,19 @@ import {
     type FirePanelEvent,
     type FirePanelState
 } from '@/lib/api';
+import { usePolledResource } from '@/lib/usePolledResource';
 
 const POLL_INTERVAL_MS = 2500;
+
+interface FirePanelData {
+    panel: FirePanelState | null;
+    events: FirePanelEvent[];
+}
+
+async function fetchFirePanelData(): Promise<FirePanelData> {
+    const [panel, events] = await Promise.all([fetchFirePanel(), fetchFirePanelEvents(10)]);
+    return { panel, events };
+}
 
 const CONDITION_STYLE: Record<FirePanelState['condition'], { bg: string; fg: string }> = {
     normal: { bg: 'var(--ok-soft)', fg: 'var(--ok)' },
@@ -25,35 +36,16 @@ function formatTime(iso: string): string {
 }
 
 export default function FirePanelAnnunciator() {
-    const [panel, setPanel] = useState<FirePanelState | null>(null);
-    const [events, setEvents] = useState<FirePanelEvent[]>([]);
-    const [interlockActive, setInterlockActive] = useState(false);
+    // No errorMessage — a failed poll is handled below via the null-panel branch, same
+    // as before this was extracted into a shared hook.
+    const { data } = usePolledResource<FirePanelData>(
+        fetchFirePanelData,
+        { panel: null, events: [] },
+        { intervalMs: POLL_INTERVAL_MS }
+    );
+    const { panel, events } = data;
     const [busy, setBusy] = useState<string | null>(null);
     const [message, setMessage] = useState<string | null>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        async function poll() {
-            try {
-                const [nextPanel, nextEvents] = await Promise.all([
-                    fetchFirePanel(),
-                    fetchFirePanelEvents(10)
-                ]);
-                if (cancelled) return;
-                setPanel(nextPanel);
-                setEvents(nextEvents);
-                setInterlockActive(nextPanel.any_alarm);
-            } catch {
-                // handled below via the null-panel branch
-            }
-        }
-        poll();
-        const id = setInterval(poll, POLL_INTERVAL_MS);
-        return () => {
-            cancelled = true;
-            clearInterval(id);
-        };
-    }, []);
 
     async function run(action: string, fn: () => Promise<void>) {
         setBusy(action);
@@ -77,6 +69,11 @@ export default function FirePanelAnnunciator() {
     }
 
     const style = CONDITION_STYLE[panel.condition];
+    // Derived from panel.any_alarm at render, not mirrored into its own state via the
+    // poll effect — a partial poll failure (panel fetched, events fetch rejected inside
+    // the same Promise.all) used to leave this frozen on the previous cycle's value
+    // instead of reflecting the panel that just loaded successfully.
+    const interlockActive = panel.any_alarm;
 
     return (
         <div className="panel-section">

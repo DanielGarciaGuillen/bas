@@ -130,14 +130,17 @@ class AlarmEngine:
                 self._clear(key, now)
 
     def _evaluate_fan_mismatch(self, points: dict, now: datetime) -> None:
-        # Unreachable against the live stack today: sims/bacnet_devices/main.py mirrors
-        # fan_status from fan_command unconditionally (no fault-injection path exists for
-        # a stuck/failed fan), so these two values can never disagree outside this file's
-        # own unit tests. The rule is kept — it's the right rule for a real fan-status
-        # mismatch, and it's exercised directly below — but demoing it live would need a
-        # fault-injection surface on the AHU sim, matching the demo-trigger pattern the
-        # other three sims already have. Deliberately not built here; see
-        # docs/alarm-engine-notes.md.
+        # sims/bacnet_devices/main.py mirrors fan_status from fan_command unconditionally
+        # (no fault-injection path exists for a genuinely stuck/failed fan), so there's no
+        # way to demo a *sustained* mismatch today. It does fire briefly and correctly in
+        # practice, though: confirmed live by triggering the fire interlock and releasing
+        # it — fan_command resolves back to the schedule's value over BACnet immediately
+        # on relinquish, while the sim's own mirror line only catches up on its next poll
+        # tick, producing a real (if momentary) disagreement the gateway alarms on and
+        # then clears a few seconds later. Demoing a *sustained* mismatch (a genuinely
+        # stuck fan) would need a fault-injection surface on the AHU sim, matching the
+        # demo-trigger pattern the other three sims already have. Deliberately not built
+        # here; see docs/alarm-engine-notes.md.
         key = "ahu-1.fan_mismatch"
         command = points.get("ahu-1.fan_command")
         status = points.get("ahu-1.fan_status")

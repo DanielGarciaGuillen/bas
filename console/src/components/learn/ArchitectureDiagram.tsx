@@ -1,7 +1,3 @@
-// Live containers (solid, colored) vs not-yet-built ones (dashed, muted). Update the
-// `live` set here as each milestone ships a new service.
-const LIVE = new Set(['bacnet', 'modbus', 'fire', 'access', 'gateway', 'console']);
-
 interface Box {
     id: string;
     x: number;
@@ -46,11 +42,10 @@ const BOXES: Box[] = [
     }
 ];
 
+// Every sim in BOXES has shipped (the project is M0-M10 complete) — this used to carry
+// a `live` set deciding solid-vs-dashed per box, but every entry was always live, so the
+// branching was dead weight. One style, same visual result.
 function BoxEl({ box }: { box: Box }) {
-    const live = LIVE.has(box.id);
-    const stroke = live ? 'var(--ok)' : 'var(--line)';
-    const fill = live ? 'var(--ok-soft)' : 'none';
-    const textColor = live ? 'var(--text)' : 'var(--muted)';
     return (
         <g>
             <rect
@@ -59,12 +54,11 @@ function BoxEl({ box }: { box: Box }) {
                 width={box.w}
                 height={box.h}
                 rx={8}
-                fill={fill}
-                stroke={stroke}
-                strokeWidth={live ? 2 : 1.5}
-                strokeDasharray={live ? undefined : '4 3'}
+                fill="var(--ok-soft)"
+                stroke="var(--ok)"
+                strokeWidth={2}
             />
-            <text x={box.x + 14} y={box.y + 22} fill={textColor} fontWeight={600} fontSize={13}>
+            <text x={box.x + 14} y={box.y + 22} fill="var(--text)" fontWeight={600} fontSize={13}>
                 {box.lines[0]}
             </text>
             <text x={box.x + 14} y={box.y + 40} fill="var(--muted)" fontSize={11}>

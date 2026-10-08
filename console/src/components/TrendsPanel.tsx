@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import LineChart from '@/components/LineChart';
 import { fetchHistory, fetchPoints, type HistorySample, type Point } from '@/lib/api';
+import { usePolledResource } from '@/lib/usePolledResource';
 
 const POLL_INTERVAL_MS = 3000;
 const RANGE_OPTIONS = [
@@ -15,8 +16,7 @@ export default function TrendsPanel() {
     const [points, setPoints] = useState<Point[]>([]);
     const [pointId, setPointId] = useState<string | null>(null);
     const [minutes, setMinutes] = useState(60);
-    const [samples, setSamples] = useState<HistorySample[]>([]);
-    const [error, setError] = useState<string | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     useEffect(() => {
         fetchPoints()
@@ -25,30 +25,20 @@ export default function TrendsPanel() {
                 setPoints(numeric);
                 setPointId((current) => current ?? numeric[0]?.id ?? null);
             })
-            .catch(() => setError("Can't reach the gateway"));
+            .catch(() => setLoadError("Can't reach the gateway"));
     }, []);
 
-    useEffect(() => {
-        if (!pointId) return;
-        let cancelled = false;
-        async function poll() {
-            try {
-                const next = await fetchHistory(pointId as string, minutes);
-                if (!cancelled) {
-                    setSamples(next);
-                    setError(null);
-                }
-            } catch {
-                if (!cancelled) setError(`Can't load history for ${pointId}`);
-            }
+    const { data: samples, error: historyError } = usePolledResource<HistorySample[]>(
+        () => fetchHistory(pointId as string, minutes),
+        [],
+        {
+            intervalMs: POLL_INTERVAL_MS,
+            errorMessage: `Can't load history for ${pointId}`,
+            enabled: pointId !== null,
+            deps: [pointId, minutes]
         }
-        poll();
-        const id = setInterval(poll, POLL_INTERVAL_MS);
-        return () => {
-            cancelled = true;
-            clearInterval(id);
-        };
-    }, [pointId, minutes]);
+    );
+    const error = loadError ?? historyError;
 
     const selected = points.find((p) => p.id === pointId);
 

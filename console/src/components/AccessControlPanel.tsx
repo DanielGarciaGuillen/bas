@@ -1,27 +1,41 @@
-import { useEffect, useState } from 'react';
-
 import AccessControlControls from '@/components/AccessControlControls';
 import {
     fetchAccessControlState,
     fetchAccessEvents,
     type AccessControlState,
-    type AccessEvent
+    type AccessEvent,
+    type Door
 } from '@/lib/api';
+import { toneStyle, type Tone } from '@/lib/points';
+import { usePolledResource } from '@/lib/usePolledResource';
 
 const POLL_INTERVAL_MS = 2500;
 
-const DOOR_STYLE: Record<string, { bg: string; fg: string }> = {
-    normal: { bg: 'var(--ok-soft)', fg: 'var(--ok)' },
-    forced: { bg: 'var(--fault-soft)', fg: 'var(--fault)' },
-    held_open: { bg: 'var(--fault-soft)', fg: 'var(--fault)' }
+interface AccessData {
+    state: AccessControlState | null;
+    events: AccessEvent[];
+}
+
+async function fetchAccessData(): Promise<AccessData> {
+    const [state, events] = await Promise.all([fetchAccessControlState(), fetchAccessEvents(15)]);
+    return { state, events };
+}
+
+// Record<Door['state'], Tone> (not Record<string, …>) so TS enforces every real door
+// state is mapped — an unmapped value used to read `.bg` off `undefined` and throw
+// mid-render; toneStyle()'s own fallback is the second safety net.
+const DOOR_TONE: Record<Door['state'], Tone> = {
+    normal: 'ok',
+    forced: 'fault',
+    held_open: 'fault'
 };
 
-const RESULT_STYLE: Record<string, { bg: string; fg: string }> = {
-    granted: { bg: 'var(--ok-soft)', fg: 'var(--ok)' },
-    denied_level: { bg: 'var(--fault-soft)', fg: 'var(--fault)' },
-    denied_schedule: { bg: 'var(--fault-soft)', fg: 'var(--fault)' },
-    forced: { bg: 'var(--fault-soft)', fg: 'var(--fault)' },
-    held_open: { bg: 'var(--fault-soft)', fg: 'var(--fault)' }
+const RESULT_TONE: Record<AccessEvent['result'], Tone> = {
+    granted: 'ok',
+    denied_level: 'fault',
+    denied_schedule: 'fault',
+    forced: 'fault',
+    held_open: 'fault'
 };
 
 function formatTime(iso: string): string {
@@ -29,39 +43,21 @@ function formatTime(iso: string): string {
 }
 
 export default function AccessControlPanel() {
-    const [state, setState] = useState<AccessControlState | null>(null);
-    const [events, setEvents] = useState<AccessEvent[]>([]);
-
-    useEffect(() => {
-        let cancelled = false;
-        async function poll() {
-            try {
-                const [nextState, nextEvents] = await Promise.all([
-                    fetchAccessControlState(),
-                    fetchAccessEvents(15)
-                ]);
-                if (!cancelled) {
-                    setState(nextState);
-                    setEvents(nextEvents);
-                }
-            } catch {
-                // panel stays on its last known state; no dedicated error banner here
-            }
-        }
-        poll();
-        const id = setInterval(poll, POLL_INTERVAL_MS);
-        return () => {
-            cancelled = true;
-            clearInterval(id);
-        };
-    }, []);
+    // No errorMessage — panel stays on its last known state with no dedicated error
+    // banner, same as before this was extracted into a shared hook.
+    const { data } = usePolledResource<AccessData>(
+        fetchAccessData,
+        { state: null, events: [] },
+        { intervalMs: POLL_INTERVAL_MS }
+    );
+    const { state, events } = data;
 
     return (
         <div className="panel-section">
             <h2>Doors</h2>
             <div className="overview-grid">
                 {(state?.doors ?? []).map((door) => {
-                    const style = DOOR_STYLE[door.state];
+                    const style = toneStyle(DOOR_TONE[door.state]);
                     return (
                         <div className="overview-tile" key={door.id}>
                             <span className="overview-label">{door.name}</span>
@@ -80,7 +76,7 @@ export default function AccessControlPanel() {
                 })}
             </div>
 
-            <AccessControlControls />
+            <AccessControlControls cardholders={state?.cardholders ?? []} />
 
             <h2 style={{ marginTop: '1.5rem' }}>Event Log</h2>
             <table>
@@ -101,7 +97,7 @@ export default function AccessControlPanel() {
                         </tr>
                     )}
                     {events.map((e, i) => {
-                        const style = RESULT_STYLE[e.result];
+                        const style = toneStyle(RESULT_TONE[e.result]);
                         const door = state?.doors.find((d) => d.id === e.door_id);
                         return (
                             <tr key={i}>

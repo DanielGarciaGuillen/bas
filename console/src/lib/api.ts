@@ -17,13 +17,8 @@ export async function fetchPoints(): Promise<Point[]> {
     return res.json();
 }
 
-export async function writeAhu1Setpoint(value: number): Promise<void> {
-    const res = await fetch(`${API_BASE_URL}/ahu-1/setpoint`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value })
-    });
-    if (!res.ok) throw new Error(`POST /ahu-1/setpoint failed: ${res.status}`);
+export function writeAhu1Setpoint(value: number): Promise<void> {
+    return postJson('/ahu-1/setpoint', { value });
 }
 
 async function postJson(path: string, body?: unknown): Promise<void> {
@@ -116,11 +111,6 @@ export async function fetchAccessControlState(): Promise<AccessControlState> {
     const res = await fetch(`${API_BASE_URL}/access-control/cardholders`);
     if (!res.ok) throw new Error(`GET /access-control/cardholders failed: ${res.status}`);
     return res.json();
-}
-
-export async function fetchCardholders(): Promise<Cardholder[]> {
-    const state = await fetchAccessControlState();
-    return state.cardholders;
 }
 
 export function badgeDoor(doorId: number, cardholderId: number) {
