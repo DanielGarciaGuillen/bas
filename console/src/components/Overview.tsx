@@ -1,11 +1,24 @@
-import { useEffect, useState } from 'react';
-
 import { fetchAlarms, fetchPoints, type Alarm, type Point } from '@/lib/api';
-import { pointById } from '@/lib/points';
+import { pointById, toneStyle, type Tone } from '@/lib/points';
+import { usePolledResource } from '@/lib/usePolledResource';
 
 const POLL_INTERVAL_MS = 2500;
 
-const CONDITION_TONE: Record<string, 'ok' | 'fault'> = {
+interface OverviewData {
+    points: Point[];
+    alarms: Alarm[];
+}
+
+async function fetchOverview(): Promise<OverviewData> {
+    const [points, alarms] = await Promise.all([fetchPoints(), fetchAlarms()]);
+    return { points, alarms };
+}
+
+// Record<string, …> (not the fire panel's own condition union, which isn't exported as a
+// type) is still unguarded in principle, but toneStyle()'s own 'neutral' fallback is the
+// actual safety net — an unrecognized condition string now renders a neutral chip instead
+// of throwing.
+const CONDITION_TONE: Record<string, Tone> = {
     NORMAL: 'ok',
     ALARM: 'fault',
     TROUBLE: 'fault',
@@ -13,31 +26,12 @@ const CONDITION_TONE: Record<string, 'ok' | 'fault'> = {
 };
 
 export default function Overview() {
-    const [points, setPoints] = useState<Point[]>([]);
-    const [alarms, setAlarms] = useState<Alarm[]>([]);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        async function poll() {
-            try {
-                const [nextPoints, nextAlarms] = await Promise.all([fetchPoints(), fetchAlarms()]);
-                if (!cancelled) {
-                    setPoints(nextPoints);
-                    setAlarms(nextAlarms);
-                    setError(null);
-                }
-            } catch {
-                if (!cancelled) setError("Can't reach the gateway");
-            }
-        }
-        poll();
-        const id = setInterval(poll, POLL_INTERVAL_MS);
-        return () => {
-            cancelled = true;
-            clearInterval(id);
-        };
-    }, []);
+    const { data, error } = usePolledResource<OverviewData>(
+        fetchOverview,
+        { points: [], alarms: [] },
+        { intervalMs: POLL_INTERVAL_MS, errorMessage: "Can't reach the gateway" }
+    );
+    const { points, alarms } = data;
 
     const occupancy = pointById(points, 'ahu-1.occupancy_mode')?.value ?? '—';
     const kw = pointById(points, 'meter-1.kw')?.value ?? '—';
@@ -80,14 +74,8 @@ export default function Overview() {
                     <span
                         className="chip"
                         style={{
-                            background:
-                                CONDITION_TONE[fireCondition] === 'fault'
-                                    ? 'var(--fault-soft)'
-                                    : 'var(--ok-soft)',
-                            color:
-                                CONDITION_TONE[fireCondition] === 'fault'
-                                    ? 'var(--fault)'
-                                    : 'var(--ok)'
+                            background: toneStyle(CONDITION_TONE[fireCondition]).bg,
+                            color: toneStyle(CONDITION_TONE[fireCondition]).fg
                         }}
                     >
                         {fireCondition}

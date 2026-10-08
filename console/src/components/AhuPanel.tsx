@@ -1,37 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import AhuGraphic from '@/components/AhuGraphic';
 import { fetchPoints, writeAhu1Setpoint, type Point } from '@/lib/api';
+import { numericValue } from '@/lib/points';
+import { usePolledResource } from '@/lib/usePolledResource';
 
 const POLL_INTERVAL_MS = 2500;
 
 export default function AhuPanel() {
-    const [points, setPoints] = useState<Point[]>([]);
-    const [error, setError] = useState<string | null>(null);
-    const [setpointInput, setSetpointInput] = useState('22.0');
+    const { data: points, error } = usePolledResource<Point[]>(fetchPoints, [], {
+        intervalMs: POLL_INTERVAL_MS,
+        errorMessage: "Can't reach the gateway"
+    });
+    // null = not yet edited by the operator (or just confirmed after a write) — in that
+    // state the field displays the live polled setpoint, derived at render, rather than
+    // a hardcoded default. Submitting an untouched form used to silently revert the real
+    // device to '22.0' regardless of what it was actually set to.
+    const [setpointOverride, setSetpointOverride] = useState<string | null>(null);
     const [writing, setWriting] = useState(false);
     const [writeMessage, setWriteMessage] = useState<string | null>(null);
 
-    useEffect(() => {
-        let cancelled = false;
-        async function poll() {
-            try {
-                const next = await fetchPoints();
-                if (!cancelled) {
-                    setPoints(next);
-                    setError(null);
-                }
-            } catch {
-                if (!cancelled) setError("Can't reach the gateway");
-            }
-        }
-        poll();
-        const id = setInterval(poll, POLL_INTERVAL_MS);
-        return () => {
-            cancelled = true;
-            clearInterval(id);
-        };
-    }, []);
+    const liveSetpoint = numericValue(points, 'ahu-1.sat_setpoint');
+    const setpointInput =
+        setpointOverride ?? (liveSetpoint !== null ? liveSetpoint.toString() : '');
 
     async function handleWriteSetpoint(e: React.FormEvent) {
         e.preventDefault();
@@ -42,6 +33,7 @@ export default function AhuPanel() {
         try {
             await writeAhu1Setpoint(value);
             setWriteMessage(`Wrote ${value} °C`);
+            setSetpointOverride(null);
         } catch {
             setWriteMessage('Write failed');
         } finally {
@@ -61,7 +53,7 @@ export default function AhuPanel() {
                     type="number"
                     step="0.5"
                     value={setpointInput}
-                    onChange={(e) => setSetpointInput(e.target.value)}
+                    onChange={(e) => setSetpointOverride(e.target.value)}
                 />
                 <button type="submit" disabled={writing}>
                     {writing ? 'Writing…' : 'Write to BACnet'}

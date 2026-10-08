@@ -26,3 +26,23 @@ export function numericValue(points: Point[], id: string): number | null {
     const point = pointById(points, id);
     return typeof point?.value === 'number' ? point.value : null;
 }
+
+// Semantic tones shared by every status/condition chip in the console. Each component
+// keeps its own small, locally-typed string -> Tone map (what "FORCED" or "ALARM" means
+// is domain-specific); this is just the one place the five tones become real CSS values,
+// so an unrecognized backend string gets `neutral` instead of `undefined.bg` — the
+// no-tone-mapped-to-this-value case used to read a color off an unguarded `Record<string,
+// …>` lookup and throw mid-render.
+export type Tone = 'ok' | 'fault' | 'accent' | 'info' | 'neutral';
+
+const TONE_STYLE: Record<Tone, { bg: string; fg: string }> = {
+    ok: { bg: 'var(--ok-soft)', fg: 'var(--ok)' },
+    fault: { bg: 'var(--fault-soft)', fg: 'var(--fault)' },
+    accent: { bg: 'var(--accent-soft)', fg: 'var(--accent)' },
+    info: { bg: 'var(--info-soft)', fg: 'var(--info)' },
+    neutral: { bg: 'var(--panel)', fg: 'var(--muted)' }
+};
+
+export function toneStyle(tone: Tone | undefined): { bg: string; fg: string } {
+    return TONE_STYLE[tone ?? 'neutral'];
+}

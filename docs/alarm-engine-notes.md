@@ -42,14 +42,19 @@ engine tracks a per-point "deviation since" timestamp, raises only once that's b
 continuously past the delay, and resets the timestamp the moment the point comes back
 inside the deadband — so a loop that's still converging never trips it.
 
-**The fan-mismatch rule is currently unreachable against the live stack.**
-`sims/bacnet_devices/main.py` mirrors `fan_status` from `fan_command` unconditionally — no
-fault-injection path exists for a stuck or failed fan — so the two values this rule
-compares can never actually disagree outside the rule's own unit tests. It's the right
-rule, and it's directly unit-tested, but demoing it live needs a fault-injection control on
-the AHU sim (matching the trigger-based demo pattern the fire panel and access control
-sims already have). Not built — adding a believable "fault injection" surface across every
-sim is a bigger, decision-needing piece of work than this rule alone justifies on its own.
+**The fan-mismatch rule can't demo a *sustained* fault against the live stack, but it does
+fire correctly on real transitions.** `sims/bacnet_devices/main.py` mirrors `fan_status`
+from `fan_command` unconditionally — no fault-injection path exists for a genuinely stuck
+or failed fan — so there's no way to hold the two values apart indefinitely for a demo.
+Confirmed live, though: triggering the fire interlock and then releasing it does raise and
+clear this alarm for real, a few seconds apart. `fan_command` resolves back to the
+schedule's value over BACnet the instant the interlock relinquishes priority 1, while the
+sim's own mirror line only catches up on its next poll tick — a real, if momentary,
+disagreement the gateway correctly alarms on. Demoing a *sustained* mismatch (an actually
+broken fan) would need a fault-injection control on the AHU sim, matching the trigger-based
+demo pattern the fire panel and access control sims already have. Not built — adding a
+believable "fault injection" surface across every sim is a bigger, decision-needing piece
+of work than this rule alone justifies on its own.
 
 ## Work orders
 

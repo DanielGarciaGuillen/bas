@@ -469,12 +469,19 @@ half is a separate pass):
   (`AO_OA_DAMPER`, `BO_FAN_COMMAND`) as inline magic tuples a few lines below their
   declaration — now uses the constants, so the interlock's write target and the poller's
   read target can't silently desync.
-- **The fan-mismatch alarm rule's unreachability against the live sim is now
-  documented, not silently true:** `sims/bacnet_devices/main.py` mirrors `fan_status`
-  from `fan_command` unconditionally, so `_evaluate_fan_mismatch` can never fire outside
-  its own unit tests. Documented in both the rule itself and `alarm-engine-notes.md`
-  rather than built around — adding a believable fault-injection surface across every sim
-  is a bigger, decision-needing piece of work than this one rule justifies alone.
+- **The fan-mismatch alarm rule's real-world limits are now documented, not silently
+  true — and verifying them live corrected an overclaim:** the first write of this note
+  said the rule "can never fire outside its own unit tests," reasoning from
+  `sims/bacnet_devices/main.py` mirroring `fan_status` from `fan_command`
+  unconditionally. Actually triggering and releasing the fire interlock live disproved
+  that: the rule fired and cleared for real, a few seconds apart, because `fan_command`
+  resolves over BACnet the instant the interlock relinquishes priority 1 while the sim's
+  own mirror line only catches up on its next poll tick. The rule can't demo a
+  *sustained* fault (no fault-injection path exists for a genuinely stuck fan), but it
+  isn't unreachable — a real transition proved that. Documented accurately in both the
+  rule itself and `alarm-engine-notes.md` after the correction. Worth keeping as its own
+  lesson: an "obviously true" claim about what a rule can and can't do is still worth
+  checking against a live run before writing it down as fact.
 - **`Zone`/`Door`/`Cardholder` default-copying switched from re-listing every field by
   name to `dataclasses.replace()`:** the original fix for the shared-mutable-default bug
   (M4/M5) rebuilt fresh instances by naming each field explicitly — correct today, but
@@ -485,3 +492,76 @@ half is a separate pass):
   dict manipulation with no I/O, extracted from what used to be inline literals in
   0%-covered poller files. Consistent with the project's whole pattern: pure logic gets
   extracted and tested, I/O stays thin.
+
+## Post-M10 — console tactical refactor pass
+
+The console/TypeScript half of the same `dx-refactor-scan` backlog. No automated test
+infrastructure exists for React components in this project (only `lib/points.ts` has a
+spec file; no jsdom, no Testing Library — see the strategic backlog's S4) so every change
+here was verified the only way available: a full Docker cold start plus a real Playwright
+walkthrough of every tab, including triggering a real fire alarm and a real forced door to
+exercise the exact code paths that changed.
+
+- **One `usePolledResource` hook replaces 8 hand-rolled poll loops**
+  (`lib/usePolledResource.ts`): `Points`, `Overview`, `AhuPanel`, `AlarmsPanel`,
+  `WorkOrdersPanel`, `TrendsPanel`, `AccessControlPanel`, and `FirePanelAnnunciator` each
+  used to copy the same fetch-on-mount/`setInterval`/cancel-on-unmount shell. Confirmed
+  the drift was real before touching it: two copies had already lost their own named
+  `POLL_INTERVAL_MS` constant to a bare `2500` literal, and `TrendsPanel` was silently
+  running on `3000` instead with no stated reason. The hook takes a fetcher, an initial
+  value, and an options bag (`intervalMs`, optional `errorMessage`, optional `deps` for
+  effects that need to restart on more than mount, optional `enabled` to pause without
+  unmounting) and returns `{data, error, updatedAt, refresh}` — `updatedAt` is new, not a
+  behavior change, just promoting a pattern `Points.tsx` already wanted
+  (`lastUpdated`) into something every tab gets for free.
+- **Two components combine what used to be a `Promise.all` of two independent fetches
+  into one fetcher function** (`Overview`, `AccessControlPanel`, `FirePanelAnnunciator`)
+  so the hook still sees one request shape per tab — same failure semantics as before
+  (either fetch rejecting fails the whole combined fetch), not a behavior change.
+- **`AhuPanel`'s SAT setpoint field now seeds from the live polled value, derived at
+  render, instead of a hardcoded `'22.0'`:** submitting the form unedited used to silently
+  revert the real device's setpoint regardless of what it actually was. First attempt
+  used a `setState` inside a `useEffect` to sync the field — oxlint's
+  `react(set-state-in-effect)` rule caught it immediately, and rightly: the live value is
+  derivable from props/state already in scope, so there's nothing to synchronize via an
+  effect. Rewritten to compute the displayed value directly during render
+  (`setpointOverride ?? liveValue`), with the override cleared back to `null` on a
+  successful write so the field keeps tracking the live point afterward.
+- **`AccessControlControls` stopped re-fetching the cardholder list its parent already
+  polls:** now takes `cardholders` as a prop. The "pick a default selection once the list
+  arrives" logic hit the same `set-state-in-effect` lint rule as the setpoint field above
+  and was rewritten the same way — `selectedId ?? cardholders[0]?.id ?? null` computed at
+  render, no effect needed at all. `fetchCardholders()` in `api.ts` is now dead and was
+  deleted.
+- **One shared `toneStyle()` helper** (`lib/points.ts`) **replaces the riskiest of five
+  independent status→color maps:** `AccessControlPanel`'s `DOOR_STYLE`/`RESULT_STYLE` were
+  typed `Record<string, …>` and indexed unguarded — an unrecognized backend value would
+  have read `.bg` off `undefined` and thrown mid-render, a real crash risk with zero test
+  coverage to catch it. Each component keeps its own small, locally-typed
+  `Record<RealUnion, Tone>` (what "FORCED" or "ALARM" means is still domain-specific);
+  `toneStyle()` is just the one place a `Tone` becomes real CSS values, with an explicit
+  `'neutral'` fallback replacing the silent crash. `FirePanelAnnunciator`'s own
+  `CONDITION_STYLE` was left alone — it was already typed against the real condition
+  union and therefore already safe, so migrating it would have been consistency for its
+  own sake rather than fixing anything.
+- **`FirePanelAnnunciator`'s `interlockActive` is now derived from `panel.any_alarm` at
+  render instead of mirrored into its own state via the poll effect** — a partial poll
+  failure (panel fetch succeeds, events fetch rejects, inside the same combined fetcher)
+  used to leave the interlock tile frozen on the previous cycle's value instead of
+  reflecting the panel that had just loaded successfully.
+- **`ArchitectureDiagram`'s dead `LIVE` set removed:** it named 6 services but the 4 boxes
+  it actually gated were always all of them, so every live/not-live branch had exactly one
+  reachable arm — confirmed by reading the file, not assumed. The comment telling the next
+  developer to "update the live set as each milestone ships" was itself stale advice for
+  dead code. Deleted; the diagram renders identically since the "live" branch was the only
+  one ever taken.
+- **A documentation overclaim, caught by actually running the fix:** the first pass at
+  documenting the fan-mismatch alarm rule (gateway/alarms.py, see the backend batch above)
+  said it "can never fire outside its own unit tests." Live-verifying this console batch —
+  triggering the fire alarm interlock, then releasing it — fired that exact alarm for
+  real: `fan_command` resolves over BACnet the instant the interlock relinquishes priority
+  1, while the sim's own `fan_status` mirror line only catches up on its next poll tick, a
+  genuine if momentary disagreement. Corrected the claim in both `alarms.py`'s comment and
+  `alarm-engine-notes.md` rather than leaving a confident-but-wrong statement in the repo.
+  The lesson generalizes past this one rule: an "obviously true" claim about what code can
+  or can't do is worth checking against a live run, not just reasoning from reading it.

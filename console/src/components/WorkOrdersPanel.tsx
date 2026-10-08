@@ -1,28 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { fetchWorkOrders, setWorkOrderStatus, type WorkOrder } from '@/lib/api';
+import { usePolledResource } from '@/lib/usePolledResource';
+
+const POLL_INTERVAL_MS = 2500;
 
 export default function WorkOrdersPanel() {
-    const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+    // No errorMessage — same reasoning as AlarmsPanel.tsx.
+    const { data: workOrders } = usePolledResource<WorkOrder[]>(fetchWorkOrders, [], {
+        intervalMs: POLL_INTERVAL_MS
+    });
     const [busyId, setBusyId] = useState<number | null>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        async function poll() {
-            try {
-                const next = await fetchWorkOrders();
-                if (!cancelled) setWorkOrders(next);
-            } catch {
-                // the summary table above already surfaces gateway-unreachable state
-            }
-        }
-        poll();
-        const id = setInterval(poll, 2500);
-        return () => {
-            cancelled = true;
-            clearInterval(id);
-        };
-    }, []);
 
     async function handleStatusChange(wo: WorkOrder, status: WorkOrder['status']) {
         setBusyId(wo.id);

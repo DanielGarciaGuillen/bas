@@ -1,6 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { ackAlarm, createWorkOrderFromAlarm, fetchAlarms, type Alarm } from '@/lib/api';
+import { toneStyle, type Tone } from '@/lib/points';
+import { usePolledResource } from '@/lib/usePolledResource';
+
+const POLL_INTERVAL_MS = 2500;
 
 const STATE_LABEL: Record<Alarm['state'], string> = {
     active_unacked: 'UNACKED',
@@ -8,31 +12,23 @@ const STATE_LABEL: Record<Alarm['state'], string> = {
     cleared: 'CLEARED'
 };
 
+const STATE_TONE: Record<Alarm['state'], Tone> = {
+    active_unacked: 'fault',
+    active_acked: 'accent',
+    cleared: 'ok'
+};
+
 type SortKey = 'newest' | 'priority';
 
 export default function AlarmsPanel() {
-    const [alarms, setAlarms] = useState<Alarm[]>([]);
+    // No errorMessage passed — the summary table above already surfaces
+    // gateway-unreachable state, same as before this was extracted into a shared hook.
+    const { data: alarms } = usePolledResource<Alarm[]>(fetchAlarms, [], {
+        intervalMs: POLL_INTERVAL_MS
+    });
     const [busyId, setBusyId] = useState<number | null>(null);
     const [message, setMessage] = useState<string | null>(null);
     const [sortKey, setSortKey] = useState<SortKey>('newest');
-
-    useEffect(() => {
-        let cancelled = false;
-        async function poll() {
-            try {
-                const next = await fetchAlarms();
-                if (!cancelled) setAlarms(next);
-            } catch {
-                // the summary table above already surfaces gateway-unreachable state
-            }
-        }
-        poll();
-        const id = setInterval(poll, 2500);
-        return () => {
-            cancelled = true;
-            clearInterval(id);
-        };
-    }, []);
 
     async function handleAck(alarm: Alarm) {
         setBusyId(alarm.id);
@@ -103,18 +99,8 @@ export default function AlarmsPanel() {
                                     <span
                                         className="chip"
                                         style={{
-                                            background:
-                                                alarm.state === 'cleared'
-                                                    ? 'var(--ok-soft)'
-                                                    : alarm.state === 'active_acked'
-                                                      ? 'var(--accent-soft)'
-                                                      : 'var(--fault-soft)',
-                                            color:
-                                                alarm.state === 'cleared'
-                                                    ? 'var(--ok)'
-                                                    : alarm.state === 'active_acked'
-                                                      ? 'var(--accent)'
-                                                      : 'var(--fault)'
+                                            background: toneStyle(STATE_TONE[alarm.state]).bg,
+                                            color: toneStyle(STATE_TONE[alarm.state]).fg
                                         }}
                                     >
                                         {STATE_LABEL[alarm.state]}

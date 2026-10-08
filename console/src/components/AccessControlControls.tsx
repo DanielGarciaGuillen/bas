@@ -1,33 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
-import {
-    badgeDoor,
-    clearDoor,
-    fetchCardholders,
-    forceDoor,
-    holdOpenDoor,
-    type Cardholder
-} from '@/lib/api';
+import { badgeDoor, clearDoor, forceDoor, holdOpenDoor, type Cardholder } from '@/lib/api';
 
 // Server Room is the one with an interesting mix of outcomes to demo: some cardholders
 // are granted, some denied by level, and (depending on the real wall-clock time) some
 // denied by schedule — see docs/access-control-notes.md.
 const DEMO_DOOR_ID = 2;
 
-export default function AccessControlControls() {
-    const [cardholders, setCardholders] = useState<Cardholder[]>([]);
-    const [cardholderId, setCardholderId] = useState<number | null>(null);
+interface AccessControlControlsProps {
+    cardholders: Cardholder[];
+}
+
+export default function AccessControlControls({ cardholders }: AccessControlControlsProps) {
+    // null = no explicit operator selection yet; derive the default (first cardholder)
+    // at render instead of seeding it via a setState-in-effect once the list arrives.
+    const [selectedId, setSelectedId] = useState<number | null>(null);
     const [busy, setBusy] = useState<string | null>(null);
     const [message, setMessage] = useState<string | null>(null);
 
-    useEffect(() => {
-        fetchCardholders()
-            .then((list) => {
-                setCardholders(list);
-                setCardholderId(list[0]?.id ?? null);
-            })
-            .catch(() => setMessage("Can't reach access control"));
-    }, []);
+    const cardholderId = selectedId ?? cardholders[0]?.id ?? null;
 
     async function run(action: string, fn: () => Promise<void>) {
         setBusy(action);
@@ -47,7 +38,7 @@ export default function AccessControlControls() {
             <span className="form-heading">Access control demo (Server Room)</span>
             <select
                 value={cardholderId ?? ''}
-                onChange={(e) => setCardholderId(Number(e.target.value))}
+                onChange={(e) => setSelectedId(Number(e.target.value))}
             >
                 {cardholders.map((c) => (
                     <option key={c.id} value={c.id}>
