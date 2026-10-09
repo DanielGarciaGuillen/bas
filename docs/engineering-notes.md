@@ -779,3 +779,37 @@ that job ("read a snapshot, act on it"), but the interlock lived somewhere else.
   the designed-on-purpose behavior — condition and the interlock both fault, but
   `fan_command` stays exactly where it was, matching `decide_interlock()`'s documented
   contract instead of guessing.
+
+## Post-M10 — strategic backlog: closing #17, #20, #21, #22 without more code
+
+Four items remained after #14/#15/#16 landed. Each was a genuine decision point, not a
+refactor — closed on review rather than built, with the reasoning written down:
+
+- **#21 (reconcile the AHU's sim-time vs. access control's real-time):** documented
+  rather than unified — see `docs/access-control-notes.md`'s new note. Each clock choice
+  is independently correct for what that subsystem actually does (AHU-1 has an
+  autonomous day/night cycle that needs accelerating to be demoable; access control has
+  no autonomous cycle, every event is triggered on demand, so there's nothing to
+  accelerate). Building a shared "building time" concept would solve a problem neither
+  subsystem has on its own — the cost would be real, the benefit wouldn't.
+- **#20 (a fault-injection surface for a sustained fan-mismatch demo):** closed as not
+  worth building. The rule already fires correctly on a real transition (confirmed live
+  during #16's work — triggering and releasing the fire interlock genuinely raises and
+  clears it), which is enough to demonstrate the rule works. Building a dedicated
+  "stuck fan" toggle on the AHU sim to demo a *sustained* fault would be real work in
+  service of a demo moment the project doesn't need — the transient case already proves
+  the logic.
+- **#22 (de-duplicate `learn/content.tsx`'s per-milestone prose):** closed. The file
+  hasn't been touched since M10 landed (confirmed via `git log --follow` — every commit
+  touching it is M3 through M10, nothing since) and the project is feature-complete
+  (M0–M10, per the README). The duplication cost #22 was about only accrues while new
+  milestones keep getting written by hand into both `docs/*.md` and `content.tsx`; with
+  nothing new being added, that cost has already stopped. De-duplicating a file that
+  isn't growing anymore is tidiness, not a fix for an active problem.
+- **#17 (console test-infra spike + lift `/points`):** discarded at the repo owner's
+  call. Adding `jsdom`/`@testing-library/react` would be the console's first test
+  dependency beyond Vitest itself — a real decision about the project's footprint, not
+  a default to reach for just because the backlog named it as a possible next step.
+
+All four closed via GitHub issue comments rather than left open indefinitely — a
+decision recorded and acted on is different from a decision avoided.

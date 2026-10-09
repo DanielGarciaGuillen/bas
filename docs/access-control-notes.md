@@ -21,6 +21,20 @@
 there's no simulated/accelerated clock here the way AHU-1 has one, since access events are
 triggered on demand rather than running an autonomous day/night cycle.
 
+> **Deliberate inconsistency, documented rather than fixed (GitHub issue #21):** AHU-1
+> runs on an accelerated sim day (a full 24h cycle in a few real minutes — see
+> `docs/sequences-of-operation.md`), while access control schedules check the real
+> wall clock. The two subsystems can disagree about "what time it is" — e.g. the AHU
+> graphic shows "Occupied" while a `business_hours` cardholder is denied at 9pm on a
+> real Saturday. Each choice is independently correct (AHU-1 needs an accelerated clock
+> to make an autonomous day/night cycle demoable at all; access control has no
+> autonomous cycle to accelerate — every event is triggered on demand), so unifying them
+> would mean inventing a shared "building time" concept neither subsystem actually
+> needs on its own. Left as two independently-reasonable simplifications rather than
+> building a shared clock to reconcile them. Worth knowing before a live demo: badge
+> events and the AHU's occupancy mode won't necessarily agree outside real business
+> hours, and that's expected, not a bug.
+
 ## Events
 
 Every badge attempt, forced door, and held-open door produces an event with a plain-English
