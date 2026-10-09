@@ -44,43 +44,36 @@ class _FakeHttpClient:
 
 
 @pytest.fixture(autouse=True)
-def _reset_client(monkeypatch):
+def _reset_client():
     fire_panel._client = None
-    # Both interlock writes are real BACnet calls in production; stub them for the
-    # poller test so it only exercises the fire-panel transport, not bacnet_ahu's.
-    monkeypatch.setattr(fire_panel.bacnet_ahu, "engage_fire_interlock", _noop)
-    monkeypatch.setattr(fire_panel.bacnet_ahu, "release_fire_interlock", _noop)
     yield
     fire_panel._client = None
 
 
-async def _noop():
-    pass
-
-
 @pytest.mark.asyncio
-async def test_read_returns_condition_zones_and_interlock_on_success():
+async def test_read_returns_condition_and_zones_on_success():
     fire_panel._client = _FakeHttpClient(payload=PANEL_NORMAL)
     points = await fire_panel.read({})
     by_id = {p.id: p for p in points}
     assert by_id["fire-panel.condition"].value == "NORMAL"
     assert by_id["fire-panel.zone1"].value == "NORMAL"
-    assert by_id["ahu-1.fire_interlock"].value == "inactive"
     assert all(p.status == "ok" for p in points)
+    # The interlock is no longer this module's concern at all (#16) — it has no
+    # BACnet dependency and never publishes an ahu-1.* point.
+    assert "ahu-1.fire_interlock" not in by_id
 
 
 @pytest.mark.asyncio
-async def test_read_reports_interlock_active_during_an_alarm():
+async def test_read_reports_zone_condition_during_an_alarm():
     fire_panel._client = _FakeHttpClient(payload=PANEL_ALARM)
     points = await fire_panel.read({})
     by_id = {p.id: p for p in points}
     assert by_id["fire-panel.condition"].value == "ALARM"
     assert by_id["fire-panel.zone1"].value == "ALARM"
-    assert by_id["ahu-1.fire_interlock"].value == "active"
 
 
 @pytest.mark.asyncio
-async def test_read_faults_condition_interlock_and_every_known_zone_on_failure():
+async def test_read_faults_condition_and_every_known_zone_on_failure():
     fire_panel._client = _FakeHttpClient(raise_on_get=True)
     known = {
         "fire-panel.zone1": Point(
@@ -100,17 +93,15 @@ async def test_read_faults_condition_interlock_and_every_known_zone_on_failure()
     assert by_id["fire-panel.zone1"].status == "fault"
     assert by_id["fire-panel.zone1"].name == "Lobby"  # name preserved from `known`
     assert by_id["fire-panel.zone2"].status == "fault"
-    assert by_id["ahu-1.fire_interlock"].status == "fault"
     # A different device's point is untouched — it isn't even in the returned list.
     assert "access-control.door1" not in by_id
 
 
 @pytest.mark.asyncio
-async def test_read_faults_condition_and_interlock_even_on_the_very_first_poll():
-    # No prior points known at all — `fire-panel.condition` and the interlock must still
-    # be visible as faulted, not silently absent.
+async def test_read_faults_condition_even_on_the_very_first_poll():
+    # No prior points known at all — `fire-panel.condition` must still be visible as
+    # faulted, not silently absent.
     fire_panel._client = _FakeHttpClient(raise_on_get=True)
     points = await fire_panel.read({})
     by_id = {p.id: p for p in points}
     assert by_id["fire-panel.condition"].status == "fault"
-    assert by_id["ahu-1.fire_interlock"].status == "fault"

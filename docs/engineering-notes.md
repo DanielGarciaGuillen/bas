@@ -720,3 +720,62 @@ bit once (#12's tactical fix). Depended on #14 (the `Point` model) landing first
   correctly through the new shell), then stopped the `fire-panel` container and
   confirmed its condition, all 4 zones, and the interlock point fault together exactly
   as before — and recover cleanly on restart.
+
+## Post-M10 — strategic backlog, issue #16: the fire interlock moves into the supervisor
+
+The highest-subtlety item in the backlog (effort M, risk high, explicitly sequenced
+last — depends on #14 and #15). `fire_panel.py` was both a poller *and* the AHU-1
+interlock control strategy; `supervisor.py`'s own docstring already described exactly
+that job ("read a snapshot, act on it"), but the interlock lived somewhere else.
+
+- **Locked in today's behavior with a test before touching anything**, per the issue's
+  own instruction: `test_bacnet_ahu.py` gained a `_FakeWriterApp` recording every
+  `write_property()` call, asserting the exact engage sequence (fan off, then damper to
+  0%, both at priority 1), the exact release sequence (both relinquished via `Null(())`,
+  never a plain value), and that engaging twice in a row sends the identical write both
+  times (idempotent, not edge-triggered). Ran green against the *old* code first,
+  confirming the behavior these tests pin down is real before relying on them to prove
+  the move didn't change it. `bacnet_ahu.py`'s `engage_fire_interlock()`/
+  `release_fire_interlock()` themselves are untouched by this issue — only *who calls
+  them* moved — so these tests still pass unchanged after the move, which is the actual
+  proof.
+- **`decide_interlock(snapshot) -> bool | None`** is the pure decision, now living in
+  `supervisor.py`: `True` engages, `False` releases, `None` means the fire panel's
+  condition is currently unknown (faulted or never published). Checking the panel's
+  overall `condition == "ALARM"` is equivalent to the sim's own raw `any_alarm` flag the
+  old code read directly — `sims/fire_panel/panel.py`'s `overall_condition()` already
+  forces `condition` to `ALARM` whenever any zone is in alarm (alarm beats trouble beats
+  supervisory), so the published point carries the same information.
+- **A real design decision the move forced into the open: what happens when the fire
+  panel goes unreachable?** The old code's BACnet write lived inside the *same*
+  try/except as the `/panel` fetch, so a comms failure meant the write simply never
+  happened that cycle — the interlock silently stayed wherever it was. Splitting
+  decide/apply meant deciding this on purpose instead of inheriting it by accident:
+  `decide_interlock()` returns `None` on an unknown condition, and the supervisor sends
+  **no new BACnet command** in that case (verified live — stopping the fire-panel
+  container left `ahu-1.fan_command` untouched) while still publishing
+  `ahu-1.fire_interlock` as faulted (an improvement over before: the old code faulted
+  that point too, but only because it happened to sit in the same except block — now
+  it's an explicit, named case in `decide_interlock()`'s own contract rather than a side
+  effect of where the code used to live).
+- **A real, named cadence change:** the interlock decision used to run on
+  `fire_panel.py`'s own 2-second poll; it now runs on `supervisor.py`'s 3-second tick.
+  Slightly slower worst-case response to an alarm, in exchange for one clock driving
+  every decision this gateway makes instead of each decision bringing its own timer.
+  Named here rather than discovered later.
+- **`fire_panel.py` lost its only non-REST dependency** — it no longer imports
+  `bacnet_ahu` at all, matching its docstring's claim that it's "not a field protocol"
+  more honestly than before (previously true of its *polling*, not of what it did with
+  the result).
+- **New `test_supervisor.py`** (9 tests): `decide_interlock()` tested directly against
+  every condition value including the faulted/missing cases; `apply_interlock()` tested
+  against a monkeypatched `bacnet_ahu` confirming both idempotent re-send and that
+  `True`/`False` route to `engage`/`release` correctly — no BACnet stack needed, closing
+  the exact gap the issue opened with ("the interlock can't be unit-tested without a
+  live BACnet stack... zero tests today").
+- **Verified live, the full chain:** full Docker cold start; triggered a real fire alarm
+  and confirmed engage (fan → inactive, damper → 0%) through the new code path;
+  cleared/reset and confirmed release; stopped the `fire-panel` container and confirmed
+  the designed-on-purpose behavior — condition and the interlock both fault, but
+  `fan_command` stays exactly where it was, matching `decide_interlock()`'s documented
+  contract instead of guessing.

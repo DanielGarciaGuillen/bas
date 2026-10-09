@@ -1,5 +1,6 @@
 import pytest
 from app import bacnet_ahu
+from bacpypes3.primitivedata import Null
 
 
 class _FakeApp:
@@ -66,3 +67,66 @@ async def test_read_faults_every_point_if_any_single_read_fails_partway_through(
     # Units are preserved on the fault points, same as every other poller's fault path.
     by_id = {p.id: p for p in points}
     assert by_id["ahu-1.sat"].units == "degC"
+
+
+# --- Interlock write-sequence lock-in (issue #16) -----------------------------------
+# Written and verified green *before* moving the interlock decision into supervisor.py,
+# per that issue's own instruction: engage_fire_interlock()/release_fire_interlock()
+# themselves aren't changing in that move, only who calls them — these tests exist to
+# prove that's actually true, not just assumed.
+
+
+class _FakeWriterApp:
+    def __init__(self):
+        self.calls: list[tuple[tuple, dict]] = []
+
+    async def write_property(self, *args, **kwargs):
+        self.calls.append((args, kwargs))
+
+
+@pytest.mark.asyncio
+async def test_engage_fire_interlock_writes_fan_off_then_damper_closed_at_priority_1():
+    fake = _FakeWriterApp()
+    bacnet_ahu._app = fake
+    await bacnet_ahu.engage_fire_interlock()
+    assert fake.calls == [
+        (
+            (bacnet_ahu.AHU_ADDRESS, bacnet_ahu.BO_FAN_COMMAND, "presentValue", False),
+            {"priority": bacnet_ahu.INTERLOCK_PRIORITY},
+        ),
+        (
+            (bacnet_ahu.AHU_ADDRESS, bacnet_ahu.AO_OA_DAMPER, "presentValue", 0.0),
+            {"priority": bacnet_ahu.INTERLOCK_PRIORITY},
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_release_fire_interlock_relinquishes_with_null_not_a_plain_value():
+    fake = _FakeWriterApp()
+    bacnet_ahu._app = fake
+    await bacnet_ahu.release_fire_interlock()
+    assert len(fake.calls) == 2
+
+    (fan_args, fan_kwargs), (damper_args, damper_kwargs) = fake.calls
+    assert fan_args[:3] == (bacnet_ahu.AHU_ADDRESS, bacnet_ahu.BO_FAN_COMMAND, "presentValue")
+    assert isinstance(fan_args[3], Null)  # relinquish via Null(()), never a bare value
+    assert fan_kwargs == {"priority": bacnet_ahu.INTERLOCK_PRIORITY}
+
+    assert damper_args[:3] == (bacnet_ahu.AHU_ADDRESS, bacnet_ahu.AO_OA_DAMPER, "presentValue")
+    assert isinstance(damper_args[3], Null)
+    assert damper_kwargs == {"priority": bacnet_ahu.INTERLOCK_PRIORITY}
+
+
+@pytest.mark.asyncio
+async def test_engage_is_idempotent_and_re_sends_identically_every_call():
+    # Self-healing across a gateway restart depends on this: engaging twice in a row
+    # must produce the exact same write sequence both times, not skip the second call
+    # because "nothing changed."
+    fake = _FakeWriterApp()
+    bacnet_ahu._app = fake
+    await bacnet_ahu.engage_fire_interlock()
+    await bacnet_ahu.engage_fire_interlock()
+    assert len(fake.calls) == 4
+    assert fake.calls[0] == fake.calls[2]
+    assert fake.calls[1] == fake.calls[3]

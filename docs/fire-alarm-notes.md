@@ -47,8 +47,12 @@ already used for badge/force/hold-open events. The console's Fire Panel tab show
 
 ## Interlock: AHU-1 fan shutdown
 
-Implemented in M4. The gateway polls the fire panel sim (`gateway/app/fire_panel.py`)
-every 2 seconds. Whenever **any** zone is in `ALARM`:
+Implemented in M4. `gateway/app/fire_panel.py` polls the fire panel sim every 2 seconds
+and normalizes it into points (as of #16, that's *all* it does); the interlock decision
+itself lives in `gateway/app/supervisor.py` (`decide_interlock()`/`apply_interlock()`),
+which re-evaluates the panel's published condition on its own tick. Whenever the panel's
+condition is `ALARM` (equivalent to "any zone is in alarm" — `sims/fire_panel/panel.py`'s
+own `overall_condition()` already forces that):
 
 1. The gateway writes AHU-1's `AHU1-FAN-COMMAND` to **inactive** and `AHU1-OA-DAMPER` to
    **0%**, both at **BACnet priority 1** — see `docs/bacnet-points-list.md` and
@@ -58,8 +62,14 @@ every 2 seconds. Whenever **any** zone is in `ALARM`:
    the schedule thinks it's doing. This is BACnet's own priority-array mechanism, not
    custom logic the gateway invented — see the console's Notes tab, M4 module, for how
    that was verified.
-3. The write is **idempotent and re-sent every poll cycle**, not edge-triggered on the
-   alarm first appearing — simpler, and self-healing if the gateway restarts mid-alarm.
+3. The write is **idempotent and re-sent every supervisor tick**, not edge-triggered on
+   the alarm first appearing — simpler, and self-healing if the gateway restarts
+   mid-alarm. Locked in by a test asserting the exact write sequence
+   (`gateway/tests/test_bacnet_ahu.py`) before the interlock decision moved out of the
+   fire-panel poller.
+4. If the fire panel itself is unreachable, the interlock is left exactly where it was —
+   no new command is guessed at — and `ahu-1.fire_interlock` is shown faulted rather
+   than silently stale. See `docs/engineering-notes.md`'s #16 entry.
 
 Once every alarmed zone's field device clears and the panel is reset back to `NORMAL`,
 the gateway **relinquishes** priority 1 (`release_fire_interlock()`) and AHU-1's own
