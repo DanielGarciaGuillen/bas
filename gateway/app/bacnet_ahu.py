@@ -24,7 +24,7 @@ from bacpypes3.local.device import DeviceObject
 from bacpypes3.pdu import IPv4Address
 from bacpypes3.primitivedata import Null, ObjectIdentifier
 
-from .state import fault_point, set_point
+from .points import Point, PointStore
 
 log = logging.getLogger("gateway.bacnet_ahu")
 
@@ -158,19 +158,38 @@ def _format_value(key: str, raw) -> float | str:
     return str(raw)
 
 
-async def poll_ahu_forever() -> None:
+async def read(known: PointStore) -> list[Point]:
     app = _client_app()
-    while True:
-        try:
-            for key, object_id, name, units in AHU_POINTS:
-                raw = await asyncio.wait_for(
-                    app.read_property(AHU_ADDRESS, object_id, "presentValue"),
-                    timeout=READ_TIMEOUT_S,
+    try:
+        results: list[Point] = []
+        for key, object_id, name, units in AHU_POINTS:
+            raw = await asyncio.wait_for(
+                app.read_property(AHU_ADDRESS, object_id, "presentValue"),
+                timeout=READ_TIMEOUT_S,
+            )
+            results.append(
+                Point(
+                    id=f"ahu-1.{key}",
+                    device="ahu-1",
+                    name=name,
+                    value=_format_value(key, raw),
+                    units=units,
                 )
-                point_id = f"ahu-1.{key}"
-                set_point(point_id, "ahu-1", name, _format_value(key, raw), units)
-        except Exception:
-            log.exception("Failed to poll AHU-1 at %s", AHU_ADDRESS)
-            for key, _object_id, name, units in AHU_POINTS:
-                fault_point(f"ahu-1.{key}", "ahu-1", name, units)
-        await asyncio.sleep(POLL_INTERVAL_S)
+            )
+        return results
+    except Exception:
+        log.exception("Failed to poll AHU-1 at %s", AHU_ADDRESS)
+        # Any single ReadProperty failing partway through faults every AHU-1 point, not
+        # just the ones not yet read this tick — matching the original all-or-nothing
+        # behavior rather than publishing a partial, inconsistent snapshot.
+        return [
+            Point(
+                id=f"ahu-1.{key}",
+                device="ahu-1",
+                name=name,
+                value=None,
+                units=units,
+                status="fault",
+            )
+            for key, _object_id, name, units in AHU_POINTS
+        ]

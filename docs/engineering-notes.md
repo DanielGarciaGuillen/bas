@@ -668,3 +668,55 @@ closed the *writing* side with `set_point()`/`fault_point()`/`fault_device()`, b
   model, confirmed trend history still records numeric points, and loaded the console's
   Points tab in a real browser with zero console errors after removing the dead
   `'stale'` status.
+
+## Post-M10 — strategic backlog, issue #15: one poller shell for all four devices
+
+`modbus_meter.py`, `bacnet_ahu.py`, `fire_panel.py`, and `access_control.py` each
+hand-wrote an identical `while True`/`try`/`except`/`asyncio.sleep` loop, differing only
+in transport and point mapping — the exact shape whose fault-path divergence already
+bit once (#12's tactical fix). Depended on #14 (the `Point` model) landing first.
+
+- **The contract: `read(known) -> list[Point]`, not `read() -> list[Point]`.** The
+  issue's own suggested signature was `read() -> list[Point]`, with the device module
+  catching its own transport errors internally. That works cleanly for `modbus_meter.py`
+  (one point) and `bacnet_ahu.py` (a fixed, hardcoded point list) — but `fire_panel.py`
+  and `access_control.py` fault a *dynamic*, sim-reported set (zones, doors) on failure,
+  previously done via `fault_device()` reading whatever the global store already had.
+  Without access to that store, `read()` would have had no way to know what to fault
+  without hardcoding a zone/door count — reintroducing the exact bug T4's fix (#12)
+  eliminated from the alarm engine. `read()` takes a read-only snapshot of the store as
+  of the start of the tick instead, so the dynamic-fault-set devices can scan it the same
+  way `fault_device()` used to, while `modbus_meter.py`/`bacnet_ahu.py` simply ignore the
+  argument. A deliberate, documented departure from the issue's literal suggestion in
+  favor of preserving a correctness guarantee already established.
+- **New `gateway/app/poller.py`:** `run_poller(name, interval_s, read, store, log)` is the
+  one place the loop shape lives now. Its own `try`/`except` is a last-resort safety net
+  for a bug *in* `read()` itself (asserted directly in `test_poller.py` — the loop
+  survives and keeps ticking even if a device module's `read()` raises unexpectedly), not
+  the normal "device unreachable" path, which every `read()` is expected to handle
+  internally and turn into fault `Point`s.
+- **`fire_panel.py`'s `read()` still drives the AHU-1 interlock as a side effect** — it
+  does more than read. That's a known, named scope boundary: moving the interlock
+  decision into `supervisor.py` is #16, which explicitly depends on this issue landing
+  first. Not conflated here.
+- **`state.py`'s `set_point()`/`fault_point()`/`fault_device()` wrappers are now dead
+  code and removed** — every poller constructs `Point` instances and returns them
+  directly; `poller.py`'s shell owns writing to the store. `state.py` shrinks back to
+  just the three shared globals its own docstring always claimed it was for.
+  `test_state.py` (which only tested those now-removed wrappers) is deleted; the
+  underlying `publish`/`fault`/`fault_device` logic it exercised is still covered
+  directly in `test_points.py`, unchanged.
+- **Every poller is unit-tested against a fake transport for the first time** — these
+  files were 0%-covered by design before (verified via `docker compose` + curl, not
+  units). A `_FakeModbusClient`, `_FakeApp` (BACnet), and a shared `_FakeHttpClient`
+  shape (fire panel, access control) stand in for the real client objects, monkeypatched
+  onto each module's lazy module-level singleton. 14 new tests across the four device
+  modules plus `poller.py` itself; gateway suite: 29 → 42 (console/sim suites
+  untouched).
+- **Verified live, the same bar as every prior backlog item:** full Docker cold start,
+  confirmed all 4 devices still publish only `"ok"` points under normal operation,
+  triggered a real fire alarm and confirmed the interlock still engages/releases
+  correctly (fan command, OA damper, and the `ahu-1.fire_interlock` point all tracked
+  correctly through the new shell), then stopped the `fire-panel` container and
+  confirmed its condition, all 4 zones, and the interlock point fault together exactly
+  as before — and recover cleanly on restart.

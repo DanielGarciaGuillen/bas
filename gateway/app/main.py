@@ -23,22 +23,30 @@ from pydantic import BaseModel
 from . import access_control, bacnet_ahu, db, fire_panel, modbus_meter, supervisor
 from .alarms import AlarmUnackable
 from .points import Point
+from .poller import run_poller
 from .state import alarm_engine, points, work_order_store
 from .work_orders import WorkOrderNotFound, seed_preventive_maintenance
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+# (display name, poll interval, read(), logger) — one row per device module. Adding a
+# 5th sim is a row here, not a new copy of the poll-loop shape; see poller.py.
+POLLERS = [
+    ("Modbus meter", modbus_meter.POLL_INTERVAL_S, modbus_meter.read, modbus_meter.log),
+    ("AHU-1", bacnet_ahu.POLL_INTERVAL_S, bacnet_ahu.read, bacnet_ahu.log),
+    ("Fire panel", fire_panel.POLL_INTERVAL_S, fire_panel.read, fire_panel.log),
+    ("Access control", access_control.POLL_INTERVAL_S, access_control.read, access_control.log),
+]
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     seed_preventive_maintenance(work_order_store, datetime.now())
     tasks = [
-        asyncio.create_task(modbus_meter.poll_meter_forever()),
-        asyncio.create_task(bacnet_ahu.poll_ahu_forever()),
-        asyncio.create_task(fire_panel.poll_fire_panel_forever()),
-        asyncio.create_task(access_control.poll_access_control_forever()),
-        asyncio.create_task(supervisor.run_supervisor_forever()),
+        asyncio.create_task(run_poller(name, interval_s, read_fn, points, log))
+        for name, interval_s, read_fn, log in POLLERS
     ]
+    tasks.append(asyncio.create_task(supervisor.run_supervisor_forever()))
     try:
         yield
     finally:
