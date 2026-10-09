@@ -87,6 +87,12 @@ That's a deliberate boundary: AHU-1's sequence of operation only ever knows abou
 setpoints and measured values, the same way a real field controller doesn't know *why* an
 interlock input changed, only that it did.
 
+Within the gateway, the decision itself lives in `supervisor.py`
+(`decide_interlock()`/`apply_interlock()`), not the fire-panel poller — moved there in
+#16 so "should the interlock be engaged" sits next to the alarm engine's own
+read-a-snapshot-act-on-it job, and so the decision is unit-testable against a fake
+BACnet writer instead of needing a live stack.
+
 ## Network topology
 
 The lab runs on a single Docker bridge network (`bas_net`, `10.10.0.0/24`) for simplicity.
