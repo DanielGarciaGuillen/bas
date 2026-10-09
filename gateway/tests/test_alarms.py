@@ -2,19 +2,13 @@ from datetime import datetime, timedelta
 
 import pytest
 from app.alarms import SAT_DEADBAND_C, SAT_DELAY_S, AlarmEngine, AlarmUnackable
+from app.points import Point
 
 T0 = datetime(2026, 10, 7, 12, 0, 0)
 
 
 def point(point_id, device, name, value, units=None, status="ok"):
-    return {
-        "id": point_id,
-        "device": device,
-        "name": name,
-        "value": value,
-        "units": units,
-        "status": status,
-    }
+    return Point(id=point_id, device=device, name=name, value=value, units=units, status=status)
 
 
 def base_points(**overrides):

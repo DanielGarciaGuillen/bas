@@ -1,12 +1,12 @@
 // Points come from whatever the gateway happens to be polling (Modbus today, BACnet
-// too) but always arrive in this one normalized shape. See gateway/app/state.py.
+// too) but always arrive in this one normalized shape. See gateway/app/points.py.
 export interface Point {
     id: string;
     device: string;
     name: string;
     value: number | string | null;
     units: string | null;
-    status: 'ok' | 'fault' | 'stale';
+    status: 'ok' | 'fault';
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';

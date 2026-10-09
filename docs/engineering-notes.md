@@ -625,3 +625,46 @@ arguments at every one of those 13 call sites.
   curled all 13 routes individually, including the one with a mismatched path
   (`/access-control/cardholders` → `/state`) and a deliberate 404 to confirm the error
   `detail` still passes through unchanged.
+
+## Post-M10 — strategic backlog, issue #14: the point shape becomes a real type
+
+The deepest of the strategic items tackled so far. `gateway/app/state.py` used to declare
+`points: dict[str, dict]` — a shape enforced only by convention (M6's tactical pass, #12,
+closed the *writing* side with `set_point()`/`fault_point()`/`fault_device()`, but every
+*consumer* still read it back out as an untyped dict).
+
+- **New `gateway/app/points.py`:** a `Point` dataclass (`id`, `device`, `name`, `value`,
+  `units`, `status`), plus `publish()`/`fault()`/`fault_device()` (moved here from
+  `state.py`) and a new `numeric_points()` — the predicate `supervisor.py` used to
+  inline as a bare `isinstance(p.get("value"), (int, float))` is now a named, tested
+  function in the one module that owns the point shape. Kept dependency-free and pure,
+  same as `alarms.py`/`work_orders.py`.
+- **`state.py` keeps the exact same `set_point()`/`fault_point()`/`fault_device()` names
+  and call signatures**, now as thin wrappers delegating to `points.py` — every poller
+  (`modbus_meter.py`, `bacnet_ahu.py`, `fire_panel.py`, `access_control.py`) is
+  byte-for-byte unchanged. Only the *consumers* (`alarms.py`, `supervisor.py`, `main.py`)
+  needed to switch from dict-subscript (`point["value"]`) to attribute access
+  (`point.value`) — exactly the blast-radius tradeoff the issue called for.
+- **The `'stale'` decision, made explicit rather than left implicit:** the issue flagged
+  that nothing on the backend has ever emitted `'stale'`, and asked whether it's a real
+  state worth building (age-tracking in the supervisor) or dead surface to delete.
+  Decided: delete. Implementing staleness detection would be new behavior, not a
+  refactor — scope-creeping a "model the existing shape" issue into "add a feature" is
+  exactly the kind of drift `dx-refactor`'s own discipline warns against. Removed the
+  union member from `console/src/lib/api.ts`'s `Point` interface and its orphaned chip
+  style in `Points.tsx`. If staleness detection is ever wanted, it's a new, separate,
+  product-scoped issue — not smuggled into this one.
+- **`GET /points`'s JSON shape is verified byte-identical**, not just assumed: FastAPI
+  serializes the `Point` dataclass the same way it serialized the old dict (confirmed in
+  this project before, re-confirmed here) — same 6 keys, same order, verified against a
+  live cold-started gateway.
+- **Test suites updated to construct the real type:** `test_alarms.py`'s `point()`
+  helper and `test_state.py`'s assertions now build `Point` instances instead of dict
+  literals — the tests exercise the same type the production code does, not a stand-in
+  that happens to look similar. A new `test_points.py` covers `publish`/`fault`/
+  `fault_device`/`numeric_points` directly (5 tests); gateway suite: 24 → 29.
+- **Verified live beyond the test suite:** full Docker cold start, confirmed `GET
+  /points`'s shape, triggered and cleared a real fire alarm end-to-end against the new
+  model, confirmed trend history still records numeric points, and loaded the console's
+  Points tab in a real browser with zero console errors after removing the dead
+  `'stale'` status.

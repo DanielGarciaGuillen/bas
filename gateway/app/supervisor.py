@@ -11,6 +11,7 @@ import os
 from datetime import datetime
 
 from . import db
+from .points import numeric_points
 from .state import alarm_engine, points
 
 SUPERVISOR_INTERVAL_S = float(os.environ.get("SUPERVISOR_INTERVAL_S", "3"))
@@ -24,9 +25,5 @@ async def run_supervisor_forever() -> None:
         snapshot = dict(points)
         alarm_engine.evaluate(snapshot, now)
 
-        samples = [
-            (point_id, float(p["value"]), now)
-            for point_id, p in snapshot.items()
-            if isinstance(p.get("value"), (int, float))
-        ]
+        samples = [(p.id, float(p.value), now) for p in numeric_points(snapshot)]
         await db.record_samples(samples)

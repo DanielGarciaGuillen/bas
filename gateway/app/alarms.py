@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
+from .points import PointStore
+
 AlarmState = Literal["active_unacked", "active_acked", "cleared"]
 
 # A deviation has to persist this long, past this deadband, before it's worth an alarm —
@@ -98,23 +100,23 @@ class AlarmEngine:
             alarm.cleared_at = now
             alarm.updated_at = now
 
-    def evaluate(self, points: dict[str, dict], now: datetime) -> None:
+    def evaluate(self, points: PointStore, now: datetime) -> None:
         self._evaluate_fire(points, now)
         self._evaluate_doors(points, now)
         self._evaluate_fan_mismatch(points, now)
         self._evaluate_sat_deviation(points, now)
 
-    def _evaluate_fire(self, points: dict, now: datetime) -> None:
+    def _evaluate_fire(self, points: PointStore, now: datetime) -> None:
         key = "fire-panel.condition"
         point = points.get(key)
-        if point is None or point["value"] is None:
+        if point is None or point.value is None:
             return
-        if point["value"] != "NORMAL":
-            self._raise(key, f"Fire panel condition: {point['value']}", priority=1, now=now)
+        if point.value != "NORMAL":
+            self._raise(key, f"Fire panel condition: {point.value}", priority=1, now=now)
         else:
             self._clear(key, now)
 
-    def _evaluate_doors(self, points: dict, now: datetime) -> None:
+    def _evaluate_doors(self, points: PointStore, now: datetime) -> None:
         # Scans whatever doors access_control.py actually published, rather than a fixed
         # count — access_control.py's own poller already iterates the sim's real door
         # list with no limit, so a 4th door added there is covered here too, instead of
@@ -122,14 +124,14 @@ class AlarmEngine:
         for key, point in points.items():
             if not key.startswith("access-control.door"):
                 continue
-            if point["value"] is None:
+            if point.value is None:
                 continue
-            if point["value"] in ("FORCED", "HELD_OPEN"):
-                self._raise(key, f"{point['name']} is {point['value']}", priority=2, now=now)
+            if point.value in ("FORCED", "HELD_OPEN"):
+                self._raise(key, f"{point.name} is {point.value}", priority=2, now=now)
             else:
                 self._clear(key, now)
 
-    def _evaluate_fan_mismatch(self, points: dict, now: datetime) -> None:
+    def _evaluate_fan_mismatch(self, points: PointStore, now: datetime) -> None:
         # sims/bacnet_devices/main.py mirrors fan_status from fan_command unconditionally
         # (no fault-injection path exists for a genuinely stuck/failed fan), so there's no
         # way to demo a *sustained* mismatch today. It does fire briefly and correctly in
@@ -144,25 +146,25 @@ class AlarmEngine:
         key = "ahu-1.fan_mismatch"
         command = points.get("ahu-1.fan_command")
         status = points.get("ahu-1.fan_status")
-        if command is None or status is None or command["value"] is None or status["value"] is None:
+        if command is None or status is None or command.value is None or status.value is None:
             return
-        if command["value"] != status["value"]:
+        if command.value != status.value:
             self._raise(
                 key,
-                f"AHU-1 fan commanded {command['value']} but status reads {status['value']}",
+                f"AHU-1 fan commanded {command.value} but status reads {status.value}",
                 priority=2,
                 now=now,
             )
         else:
             self._clear(key, now)
 
-    def _evaluate_sat_deviation(self, points: dict, now: datetime) -> None:
+    def _evaluate_sat_deviation(self, points: PointStore, now: datetime) -> None:
         key = "ahu-1.sat_deviation"
         sat = points.get("ahu-1.sat")
         setpoint = points.get("ahu-1.sat_setpoint")
-        if sat is None or setpoint is None or sat["value"] is None or setpoint["value"] is None:
+        if sat is None or setpoint is None or sat.value is None or setpoint.value is None:
             return
-        deviation = abs(sat["value"] - setpoint["value"])
+        deviation = abs(sat.value - setpoint.value)
 
         if deviation <= SAT_DEADBAND_C:
             self._deviation_since.pop(key, None)
@@ -173,8 +175,8 @@ class AlarmEngine:
         if (now - since).total_seconds() >= SAT_DELAY_S:
             self._raise(
                 key,
-                f"AHU-1 SAT {sat['value']:.1f}°C is {deviation:.1f}°C off setpoint "
-                f"{setpoint['value']:.1f}°C for {SAT_DELAY_S:.0f}s+",
+                f"AHU-1 SAT {sat.value:.1f}°C is {deviation:.1f}°C off setpoint "
+                f"{setpoint.value:.1f}°C for {SAT_DELAY_S:.0f}s+",
                 priority=3,
                 now=now,
             )
