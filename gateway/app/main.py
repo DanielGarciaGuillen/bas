@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from . import access_control, bacnet_ahu, db, fire_panel, modbus_meter, supervisor
 from .alarms import AlarmUnackable
+from .points import Point
 from .state import alarm_engine, points, work_order_store
 from .work_orders import WorkOrderNotFound, seed_preventive_maintenance
 
@@ -63,7 +64,7 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/points")
-async def list_points() -> list[dict]:
+async def list_points() -> list[Point]:
     return list(points.values())
 
 

@@ -6,8 +6,7 @@ const POLL_INTERVAL_MS = 2500;
 
 const STATUS_STYLE: Record<Point['status'], { bg: string; fg: string; label: string }> = {
     ok: { bg: 'var(--ok-soft)', fg: 'var(--ok)', label: 'OK' },
-    fault: { bg: 'var(--fault-soft)', fg: 'var(--fault)', label: 'FAULT' },
-    stale: { bg: 'var(--accent-soft)', fg: 'var(--accent)', label: 'STALE' }
+    fault: { bg: 'var(--fault-soft)', fg: 'var(--fault)', label: 'FAULT' }
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
